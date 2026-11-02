@@ -1,0 +1,31 @@
+✔ four bands have exact boundary behavior (2.661138ms)
+✔ API integers reject missing, fractional, negative and unsafe values (0.398012ms)
+✔ next round timing is anchored to official round data, including boundaries (0.309356ms)
+✔ never distribute a nonzero batched settlement or use unsafe records (0.810076ms)
+✔ consecutive safe mining checkpoints provide exact sleep and active work (0.459147ms)
+✔ zero-work batches prove sleep, unavailable history proves nothing (0.268684ms)
+✔ feed reads official nested fields, freshness and installation identity (0.73347ms)
+✔ a prediction reserves the stake once and forbids duplicates (1.366624ms)
+✔ history can settle pending picks while wheel status is unavailable, without enabling new picks (0.831189ms)
+✔ reject closed rounds, fractional stakes, overdrafts and wrong time windows (0.625057ms)
+✔ correct solo pick pays stake-inclusive return and settles idempotently (0.336294ms)
+✔ consecutive wins escalate and cap the multiplier; loss resets it (0.617392ms)
+✔ missing round waits for grace, refunds fully and preserves streak (0.249939ms)
+✔ missing data refunds even while both endpoints are unavailable (0.186119ms)
+✔ changed installations refund, never settle a different installation’s round (0.189799ms)
+✔ pending earlier picks order one player’s streak but do not block another player (0.276368ms)
+✔ two-wallet duel escrows equal stakes and pays the winning pot (0.560963ms)
+✔ duels refuse guests, self-matches, same bands and late acceptance (0.444148ms)
+✔ neither correct in a duel returns both stakes (0.25163ms)
+✔ unmatched, cancelled and missing-data duels refund without duplicating credit (2.487902ms)
+✔ relief is 300 SP below threshold, once per UTC day and outside profit (0.373036ms)
+✔ weekly profit uses settled net only and resets Monday UTC (0.254449ms)
+✔ malformed saved data fails closed; valid state roundtrips (0.506178ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 332.487244
