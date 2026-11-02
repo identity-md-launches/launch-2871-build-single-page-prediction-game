@@ -51,11 +51,13 @@ The desktop game grid is `.88fr / 1.12fr` with a 24px gap: live wheel first, pre
 | Above 1,500px | Main top padding grows to 48px |
 | 1,100px and below | Tighter header and surface padding, quieter secondary typography |
 | 900px and below | 24px page inset, compact desktop grid, best-streak stat hidden |
-| 740px and below | Header navigation collapses; header can wrap for enlarged text; game becomes one column with the prediction form first; insights stack; account strip retains name/balance/relief; history shows stake inside the pick cell |
+| 740px and below | Header navigation collapses; header can wrap for enlarged text; game becomes one column with the prediction form first; insights stack; account strip retains name/balance/relief; history shows stake inside the pick cell; its filter row occupies the available width and CSV sits below |
 | 440px and below | 16px page inset, 28px H1, compact four-across bands, bottom-aligned wallet dialog, stacked history toolbar |
 | 360px and below | 20px H1, smaller brand/spacing, simplified table icons, footer stacks |
 
 Text containers grow naturally. Dialogs have a viewport-relative maximum height and their own scrolling; backgrounds do not scroll while a dialog is open. Buttons stay inset from screen edges. The page has no fixed bottom action bar. At 390×844, the main prediction action is visible in the first screen; its top is approximately 679px and height 48px. Reflow was checked at 320, 390, 740, 900, and 1440px. CSS text enlargement to 200% at 390px and an RTL mirror were also checked; browser-native zoom and full RTL localization were not.
+
+The mobile `.history-filters` uses `flex: 1 1 100%` and `min-width: 0`; `.select-label:first-child` also has `min-width: 0`, allowing the player selector to shrink beside Result. A 24-character player name was checked at 320, 390, 440, 740, and 1440px. At 320px, both selectors fit the 264px toolbar and the document remains 320px wide. Full names remain available in the native option list and profile editor.
 
 ## Elevation & depth
 
@@ -81,6 +83,8 @@ The shared radius tokens are 8px for controls (`--radius-sm`), 12px for groups (
 | Relief/profile/rules | `src/App.tsx`; disclosed low-balance threshold/reset time, name editing, and exact game rules in the shared native dialog. |
 
 High-frequency color/background transitions last 120ms with explicit properties. Press scaling is `.96` using `cubic-bezier(.2,0,0,1)`. Wheel motion is a 14-second linear rotation. All animation and press motion are inside `prefers-reduced-motion: no-preference`; running state also has a static text label. There are no staged page entrances, confetti, gradients, audio, or autoplay media.
+
+`public/share.png` is the 1,200×630 social card referenced by `og:image`. Its wordmark uses the local `public/favicon.svg` hamster mark, embedded before capture; the production build copies the complete PNG to `dist/share.png`.
 
 ## Do’s and don’ts
 

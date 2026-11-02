@@ -244,9 +244,14 @@ export function settleLeague(
     if (p.outcome !== "pending") continue;
     if (!p.duelId && waitingPlayers.has(p.player)) continue;
     const wrongInstallation = !!installation && p.installation !== installation;
-    const result =
+    const confirmed =
       !wrongInstallation && installation === p.installation
         ? byRound.get(p.round)
+        : undefined;
+    // A timely API confirmation remains valid when the player returns after grace.
+    const result =
+      confirmed && confirmed.settledAt <= p.end + REFUND_GRACE_MS
+        ? confirmed
         : undefined;
     const duel = p.duelId && league.duels.find((d) => d.id === p.duelId);
     if (duel) {
@@ -264,19 +269,6 @@ export function settleLeague(
           ),
         );
         duel.status = "cancelled";
-      } else if (wrongInstallation || now >= p.end + REFUND_GRACE_MS) {
-        entries.forEach((e) =>
-          finish(
-            league,
-            e,
-            "refunded",
-            e.stake,
-            now,
-            undefined,
-            "Round data unavailable within 20 minutes",
-          ),
-        );
-        duel.status = "settled";
       } else if (result && now >= p.end && duel.status === "matched") {
         const winner = entries.find((e) => e.band === result.band);
         entries.forEach((e) =>
@@ -293,6 +285,19 @@ export function settleLeague(
           ),
         );
         duel.status = "settled";
+      } else if (wrongInstallation || now >= p.end + REFUND_GRACE_MS) {
+        entries.forEach((e) =>
+          finish(
+            league,
+            e,
+            "refunded",
+            e.stake,
+            now,
+            undefined,
+            "Round data unavailable within 20 minutes",
+          ),
+        );
+        duel.status = "settled";
       }
     } else if (wrongInstallation)
       finish(
@@ -304,7 +309,7 @@ export function settleLeague(
         undefined,
         "The API installation changed",
       );
-    else if (result && now >= p.end && now < p.end + REFUND_GRACE_MS) {
+    else if (result && now >= p.end) {
       const player = ensurePlayer(league, p.player);
       p.multiplier = multiplierFor(player.streak);
       const won = p.band === bandFor(result.work);

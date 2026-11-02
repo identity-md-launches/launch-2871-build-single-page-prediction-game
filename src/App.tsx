@@ -149,22 +149,25 @@ export default function App() {
   const reliefEligible =
     player.balance < 300 && player.lastRelief !== utcDay(now);
 
+  const settlementTick = Math.floor(now / 5000);
   useEffect(() => {
-    if (!feed) return;
-    for (const result of feed.results)
-      resultsRef.current.set(`${feed.installation}:${result.round}`, result);
+    // Give the initial history request (including its failure/timeout) a chance
+    // to finish before making an irreversible missing-data refund on reload.
+    if (!feed && loading) return;
+    if (feed)
+      for (const result of feed.results)
+        resultsRef.current.set(`${feed.installation}:${result.round}`, result);
     const results = [...resultsRef.current.entries()]
-      .filter(([key]) => key.startsWith(`${feed.installation}:`))
+      .filter(([key]) => key.startsWith(`${feed?.installation}:`))
       .map(([, r]) => r)
       .sort((a, b) => b.round - a.round)
       .slice(0, 144);
     setSettledResults(results);
-  }, [feed]);
-  const settlementTick = Math.floor(now / 5000);
-  useEffect(() => {
     void mutate((draft) => {
       ensurePlayer(draft, playerId);
-      settleLeague(draft, settledResults, now, feed?.installation);
+      // Cache and settle in the same effect so the first feed cannot refund
+      // against the previous render's empty result list.
+      settleLeague(draft, results, now, feed?.installation);
     }).catch((e) =>
       setNotice(
         e instanceof Error
@@ -174,7 +177,7 @@ export default function App() {
     );
     // Settle on each feed update and every five seconds, including while the API is down.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settlementTick, settledResults, playerId, mutate]);
+  }, [settlementTick, feed, loading, playerId, mutate]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

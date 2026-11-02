@@ -2,6 +2,47 @@
 
 Date: **2026-11-02**. This is a record of checks performed by the implementer, not an independent certification. The exact production export is `dist/`; the final source is in `src/`.
 
+## Revision results
+
+All three reopened findings reproduced and were fixed without changing the established design, dependencies, wallet integration, or local-league rules. The sections after this revision record retain the original implementation evidence; the results here and in `validation-results.json` supersede the original test counts and export hashes.
+
+| Finding / final source | Reproduction before the fix | Fix and production recheck |
+| --- | --- | --- |
+| High: settlement on reopening, `src/lib/game.ts:247` and `src/App.tsx:153` | At 390×844, a 100 SP Run or Sleep pick for #102 was refunded to 1,000 SP at 12:40:00.001Z despite a safe 280-work result timestamped 12:20:01Z. Four new unit regression groups failed, including matched duels and streak ordering. | Exact results confirmed at or before round end + 20 minutes take precedence over refunds for pending solo picks and matched duels. The initial feed/history attempt must finish before a missing-data refund, and caching/settlement share one effect. With initial history held across a five-second timer, the ledger remains pending and unchanged until the response. Run then pays 200 SP, balance 1,100, streak 1; Sleep loses, balance 900. A matched two-wallet duel pays the host 200 SP, with host/guest balances 1,100/900. |
+| High: long-name reflow, `src/style.css:1931` | At 320×844, 24 W characters expanded the filters to 298px within a 264px toolbar; document width was 326px. | In the existing mobile media rule, the filters use `flex: 1 1 100%` and `min-width: 0`; the first label also permits shrinking. Recheck: 264px filters inside x=28..292, document width 320px, both selectors operable, CSV below. Also passed at 390/440/740/1440px. |
+| Medium: flattened broken logo, `public/share.png` (metadata: `index.html:21`) | Native-size inspection confirmed a broken-image glyph inside the 48px logo box in both PNGs. | Embedded and decoded `public/favicon.svg` at the existing logo position before recapturing the 1,200×630 card. The remaining image composition is preserved. Visually inspected the corrected PNG; `public/share.png` and `dist/share.png` match byte for byte. |
+
+The confirmation cutoff is inclusive. Unit coverage checks timestamps one millisecond before, at, and after it for both modes; a later observation does not change that cutoff. Missing and late-confirmed results still refund, chronological solo streak returns remain correct, and completed refunds are never reversed.
+
+| Executed revision check | Actual result |
+| --- | --- |
+| `npm run typecheck` in a clean source copy with the locked external toolchain | Exit 0, TypeScript 5.9.3 |
+| `npm test` in that copy | Exit 0, **28/28 passed** (23 existing and five new groups) |
+| `npm run build` in that copy | Exit 0, Vite 8.3.5; copied that exact export to `dist/` and verified all 14 exported files match |
+| `node tests/browser.mjs` against the submitted `/preview/` export | Exit 0, **13/13 scenarios passed**, Chromium and WebKit; no reported script errors; axe scan passed |
+| `node .imd/reads/skills/design-critic/scripts/taste.mjs --out test/scratch/taste` | Exit 0, **16/16 passed** at 320/390/1440px; no local resource failures, horizontal overflow, overlapping/clipped text, or failed measured text contrast |
+| Direct rendered/image inspection | Viewed fresh 390px and 1440px probe screenshots, the long-name 320px screenshot, and the corrected social PNG. Product and Lock prediction remain on the 390px first screen. |
+| Delivery integrity | Public assets match exported copies; ordinary build matches the submitted export; package manifest/lockfile unchanged; no ignore-file, dependency/cache, or registry-archive additions |
+
+Dependency installation and build tools stayed in a temporary directory outside the repository. Browser execution used Playwright 1.64.1 with Chromium and WebKit; WebKit loaded temporary external runtime libraries without bypassing the host check in this revision. The existing unused Ox `node:worker_threads` externalization warning remains; the checked browser bundle has no corresponding error. All round waits use a controlled clock.
+
+### Better Interface revision coverage
+
+Read the pinned workflow, all six domains' core principles, and documentation method. Scope was the changed settlement/loading states, mobile filters, and social asset, with the existing main flow rerun for regressions.
+
+| Domain | Coverage and limits |
+| --- | --- |
+| Accessibility | Checked native selector names and operation, existing keyboard/dialog flow, focus return, reduced motion, and axe scan. Screen-reader sessions and physical device input remain unperformed. |
+| Layout | Checked the longest permitted name at 320/390/440/740/1440px, normal reflow including 900px, and the 390px primary action. No overflow was hidden. Browser-native zoom and physical safe areas remain unverified. |
+| Writing | Source-reviewed the existing Player/Result/CSV labels, settlement outcomes and refund reason; retained the established terms and game copy. No new product copy or localization was introduced. |
+| Typography | Retained the source type scale, weights, local font and numeric styles. Fresh probe passed; viewed actual long-name selector rendering. Full values remain available in the native option list and profile editor. |
+| Colors | Tokens unchanged; fresh probe's measured text contrast passed. No new contrast ratios are inferred for unmeasured states or themes. |
+| UI | Walked delayed history, reload, win/loss/refund, matched duel, filter, and empty-history states. Visually confirmed the corrected share-card mark. Animations-panel slow replay and real social-platform unfurling were not performed. |
+
+[320px long-name regression screenshot](images/revision-history-320.png) shows both filters and CSV inside the page. The corrected share card itself is delivered at `public/share.png` and `dist/share.png`. Machine-readable finding responses are in the root `.imd-responses.json`.
+
+Reopening and long-name regression scenarios ran in Chromium. WebKit reran the existing mobile prediction and wallet-sheet scenario. Real extension prompts, app handoffs, passkey onboarding, screen readers, and native zoom remain outside this revision's verification. The static browser-local league limitation remains explicit. **Complete for the stated revision scope.**
+
 ## Scope and assumptions
 
 Squeek Streak is a single-page, English-language prediction game using the real official Squeekchain API and free SP points. The one visual idea is an illustrated hamster economy: pale green wheel enclosure, cream work surfaces, seed-orange actions, and compact live data around the prediction control.
@@ -115,7 +156,7 @@ Screenshots under `test/scratch/` are temporary and intentionally not part of th
 
 ## Remaining limitations and completion
 
-Submission integrity was checked against the final files: **860,947 bytes** in `dist/`, approximately **1.59 MiB** for the full 52-file delivery including source, lockfile, runtime assets, documentation, and retained screenshots. This is below the 8 MiB ceiling. All delivery paths are eligible for the Git bundle. Public assets match the export byte for byte, relative HTML/CSS asset references resolve, documentation links exist, and a normal npm rebuild is byte-identical to the submitted export. No dependency/cache directories, dependency archives, ignore-rule changes, or submodules were added.
+Submission integrity was rechecked for the revision: **862,523 bytes** in `dist/`, approximately **1.65 MiB** for the full 54-file delivery including source, lockfile, runtime assets, documentation, and retained screenshots. This is below the 8 MiB ceiling. Public assets match the export byte for byte, relative HTML asset references resolve, and a normal npm rebuild is byte-identical to the submitted export. No dependency/cache directories, dependency archives, ignore-rule changes, or submodules were added.
 
 - Local league only: no global score service, remote matchmaking, cross-device pot escrow, or server enforcement of balances. Local points are editable by the browser owner, and clearing site storage resets them. This boundary is visible in the product.
 - A static closed page cannot perform a timed settlement or refund until it is opened again. The next visit catches up, and completed refunds are final.

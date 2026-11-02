@@ -182,6 +182,48 @@ async function advanceFeed(page, state, nextTime, results = []) {
   await page.waitForTimeout(300);
   await page.clock.runFor(5100);
 }
+async function reopenAfterGrace(page, state, { work = 280, late = false } = {}) {
+  const before = await saved(page);
+  await page.goto("about:blank");
+  const end = state.currentStart + 1_200_000;
+  const reopenedAt = end + 1_200_001;
+  if (work !== null)
+    state.history.recentSettlements.unshift({
+      previousSettledThroughRound: "101",
+      settledThroughRound: "102",
+      workAdded: String(work),
+      confirmationStatus: "safe",
+      blockTimestamp: new Date(late ? reopenedAt : end + 1000).toISOString(),
+    });
+  state.status.generatedAt = state.status.measurement.observedAt =
+    state.history.generatedAt = new Date(reopenedAt).toISOString();
+  let releaseHistory, historyRequested;
+  const held = new Promise((resolve) => (releaseHistory = resolve));
+  const requested = new Promise((resolve) => (historyRequested = resolve));
+  await page.route((url) => url.pathname === "/v1/settlements", async (route) => {
+    historyRequested();
+    await held;
+    await route.fallback();
+  });
+  await page.clock.setFixedTime(reopenedAt);
+  await page.goto(server.url);
+  await requested;
+  try {
+    // Run a settlement timer while initial history is still loading. It must
+    // not refund either a solo pick or a matched duel ahead of that response.
+    await page.clock.runFor(5100);
+    assert.deepEqual(await saved(page), before);
+  } finally {
+    releaseHistory();
+  }
+  await page.waitForFunction(
+    (key) => JSON.parse(localStorage.getItem(key)).predictions.every(
+      (p) => p.outcome !== "pending",
+    ),
+    storageKey,
+  );
+  return saved(page);
+}
 async function signIn(page) {
   await page.locator(".connect-button").click();
   await page
@@ -197,6 +239,72 @@ async function signIn(page) {
 let browser;
 try {
   browser = await chromium.launch({ headless: true });
+  await run(
+    "Chromium: reopening waits for history, settles timely solo wins/losses, refunds missing or late data",
+    async () => {
+      for (const scenario of [
+        { band: "run", work: 280, outcome: "won", balance: 1100 },
+        { band: "sleep", work: 280, outcome: "lost", balance: 900 },
+        { band: "run", work: null, outcome: "refunded", balance: 1000 },
+        { band: "run", work: 280, late: true, outcome: "refunded", balance: 1000 },
+      ]) {
+        const { page, context, state, errors } = await pageFor(browser);
+        try {
+          await page.locator(`input[value="${scenario.band}"]`).check();
+          await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
+          await page.locator(".predict-button").filter({ hasText: "locked" }).waitFor();
+          const data = await reopenAfterGrace(page, state, scenario);
+          assert.equal(data.predictions[0].outcome, scenario.outcome);
+          assert.equal(data.players.guest.balance, scenario.balance);
+          assert.equal(data.players.guest.streak, scenario.outcome === "won" ? 1 : 0);
+          await page.reload();
+          await page.locator(".live-label").filter({ hasText: "Live" }).waitFor();
+          assert.deepEqual(await saved(page), data, "Reopening cannot credit a completed pick twice");
+          assert.deepEqual(errors, []);
+        } finally {
+          await context.close();
+        }
+      }
+    },
+  );
+  await run(
+    "Chromium: maximum-length player name keeps both history filters and CSV inside mobile viewport",
+    async () => {
+      const { page, context, errors } = await pageFor(browser, { width: 320 });
+      try {
+        await page.locator(".account-name").click();
+        await page.getByLabel("Player name", { exact: true }).fill("W".repeat(24));
+        await page.getByRole("button", { name: "Save player name" }).click();
+        for (const width of [320, 390, 440, 740, 1440]) {
+          await page.setViewportSize({ width, height: 844 });
+          await page.locator(".history-toolbar").scrollIntoViewIfNeeded();
+          const layout = await page.evaluate(() => {
+            const toolbar = document.querySelector(".history-toolbar").getBoundingClientRect();
+            const filters = document.querySelector(".history-filters").getBoundingClientRect();
+            return {
+              viewport: innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              filtersWidth: filters.width,
+              toolbarWidth: toolbar.width,
+              controlsInside: [...document.querySelectorAll(".history-toolbar select, .export-button")].every(el => {
+                const r = el.getBoundingClientRect();
+                return r.x >= toolbar.x && r.right <= toolbar.right && r.width > 0;
+              }),
+            };
+          });
+          assert.equal(layout.scrollWidth, width);
+          assert.ok(layout.controlsInside, JSON.stringify(layout));
+          if (width <= 440) assert.equal(layout.filtersWidth, layout.toolbarWidth);
+          await page.getByLabel("Filter history by result").selectOption("won");
+          await page.getByLabel("History player").selectOption("self");
+          if (width === 320) await page.screenshot({ path: `${shots}/long-name-history-320.png` });
+        }
+        assert.deepEqual(errors, []);
+      } finally {
+        await context.close();
+      }
+    },
+  );
   await run(
     "Chromium: prediction, exact result, streak payout, duplicate prevention, history, CSV and leaderboard",
     async () => {
@@ -433,6 +541,35 @@ try {
         fullPage: true,
       });
       await context.close();
+    },
+  );
+  await run(
+    "Chromium: reopening a matched two-wallet duel after grace pays the confirmed pot",
+    async () => {
+      const { page, context, state, errors } = await pageFor(browser, { wallet: true });
+      try {
+        await signIn(page);
+        await page.getByRole("button", { name: "1v1 duel", exact: false }).click();
+        await page.getByRole("button", { name: "Create a duel", exact: true }).click();
+        await page.locator(".duel-row").waitFor();
+        await page.evaluate(() => window.testSwitchAccount());
+        await page.locator(".account-mode").filter({ hasText: "Guest practice" }).waitFor();
+        await signIn(page);
+        await page.getByRole("radio", { name: /Sleep 0/ }).check();
+        await page.getByRole("button", { name: "Join with Sleep" }).click();
+        await page.locator(".duel-row").waitFor({ state: "hidden" });
+        const data = await reopenAfterGrace(page, state);
+        const duel = data.duels[0];
+        assert.equal(duel.status, "settled");
+        assert.equal(data.players[duel.host].balance, 1100);
+        assert.equal(data.players[duel.guest].balance, 900);
+        assert.equal(data.predictions.find(p => p.player === duel.host).outcome, "won");
+        assert.equal(data.predictions.find(p => p.player === duel.guest).outcome, "lost");
+        assert.equal(data.players[duel.host].streak, 0);
+        assert.deepEqual(errors, []);
+      } finally {
+        await context.close();
+      }
     },
   );
   await run(

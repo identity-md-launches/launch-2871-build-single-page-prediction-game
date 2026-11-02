@@ -1929,10 +1929,12 @@ select:focus-visible {
     align-items: center;
   }
   .history-filters {
-    flex: 1;
+    flex: 1 1 100%;
+    min-width: 0;
   }
   .select-label:first-child {
     flex: 1;
+    min-width: 0;
   }
   .select-label select {
     font-size: var(--text-base);

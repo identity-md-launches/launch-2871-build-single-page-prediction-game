@@ -56,7 +56,7 @@ The app polls these public endpoints every 15 seconds while visible and refreshe
 
 Only **exact, confirmed round work** can settle a pick. A safe single-round `workAdded` is accepted. Consecutive safe mining checkpoints can prove a round’s cumulative-work difference, including zero-work rounds absent from the active settlement list. A confirmed zero-work batch can prove that each included round slept. Nonzero multi-round batches, unsafe records, missing values, and cross-installation records are never guessed or split.
 
-When an exact result is unavailable for **20 minutes after the target round ends**, its stake refunds automatically. Settlement checks run every five seconds while open and catch up on reopening; a closed static page cannot run a background job. Once refunded, a later result cannot reverse it. A changed API installation also refunds affected picks. Out-of-order solo results wait for that player’s earlier result or refund, preserving correct streak multipliers without blocking other players.
+When an exact result is unavailable for **20 minutes after the target round ends**, its stake refunds automatically. On reopening, the initial history request completes (or fails/times out) before a missing-data refund. An exact result whose API confirmation timestamp is at or before the deadline settles a pending solo pick or matched duel even on a later visit. Settlement checks run every five seconds while open; a closed static page cannot run a background job. Completed refunds remain final. A changed API installation also refunds affected picks. Out-of-order solo results wait for that player’s earlier result or refund, preserving correct streak multipliers without blocking other players.
 
 The device’s UTC clock aligns to the official round anchor. A stale/offline status, unavailable anchor/history, or a clock more than two minutes away from the API timestamp pauses new picks. Cached responses cannot rewind the countdown or reopen a round. Previously shown metrics stay labeled **Paused** on a feed failure; no fabricated live data is substituted. When only status is unavailable, safe settlement history can still resolve pending picks without enabling new ones.
 
@@ -76,8 +76,8 @@ The production export was built and tested on **2026-11-02**:
 | --- | --- |
 | Production build | Passed; relative export in `dist/` |
 | TypeScript (`tsc --noEmit`) | Passed |
-| Game/API unit tests | 23/23 passed |
-| Production browser scenarios | 10/10 passed across Chromium and WebKit |
+| Game/API unit tests | 28/28 passed |
+| Production browser scenarios | 13/13 passed across Chromium and WebKit |
 | Axe accessibility scan | No violations in the inspected main state |
 | Pinned taste@1 probe | 16/16 passed at 320, 390, and 1440 px |
 | Additional reflow | No horizontal overflow at 740 or 900 px; 200% text sizing at 390 px passed |
@@ -85,7 +85,9 @@ The production export was built and tested on **2026-11-02**:
 
 Browser scenarios cover prediction validation and persistence, exact settlement, streak payout, duplicate prevention, CSV/history/leaderboard, API-down refunds, settlement during a status-only outage, daily relief, name editing, EIP-6963 signature verification, rejected-signature retry, account switching, a complete two-wallet duel, keyboard dialog focus and return, running wheel metrics, reduced motion, and recovery after API failure. Round waits use a controlled browser clock, not real 10-minute sleeps.
 
-The machine’s supplied browser connector could not launch its Chrome distribution. The checks instead used directly installed Playwright Chromium and WebKit. WebKit needed temporary external library files and a host-requirement probe bypass; it launched and completed the mobile interaction scenario. No machine dependencies or caches are included in the delivery. The build emits one benign dependency warning about an unused Node worker module in Ox; the tested browser bundle has no corresponding runtime failure.
+Revision regressions also cover reopening after the refund deadline, delayed initial history, timely winning and losing results, late/missing data, matched-duel payouts, refund finality, and 24-character player names at 320–1440px. The corrected local share card was inspected directly. All three reviewer findings and their rechecks are recorded in [.imd-responses.json](.imd-responses.json).
+
+Checks used direct Playwright Chromium and WebKit. WebKit used temporary external runtime libraries; both browsers completed their scenarios. No machine dependencies or caches are included in the delivery. The build emits one benign dependency warning about an unused Node worker module in Ox; the tested browser bundle has no corresponding runtime failure.
 
 Real wallet extensions, physical phone app handoffs, Coinbase passkey creation, screen-reader sessions, and browser-native zoom were not tested. Emulated viewports and 200% CSS text enlargement are not physical-device or native-zoom tests. These results are worker observations, not an independent certification. Detailed coverage, fixed findings, evidence, and remaining limitations are in [docs/validation.md](docs/validation.md).
 

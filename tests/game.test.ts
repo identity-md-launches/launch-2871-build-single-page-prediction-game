@@ -257,6 +257,61 @@ test("correct solo pick pays stake-inclusive return and settles idempotently", (
   settleLeague(league, [result()], start + ROUND_MS + 3000, installation);
   assert.equal(league.players.alice.balance, 1100);
 });
+test("reopening after grace settles timely confirmed solo wins and losses", () => {
+  for (const band of ["run", "sleep"] as const) {
+    const league = emptyLeague();
+    placePrediction(league, input({ band }));
+    const reopenedAt = start + ROUND_MS + REFUND_GRACE_MS + 1;
+    settleLeague(league, [result()], reopenedAt, installation);
+    const won = band === "run";
+    assert.equal(league.predictions[0].outcome, won ? "won" : "lost");
+    assert.equal(league.predictions[0].payout, won ? 200 : 0);
+    assert.equal(league.players.alice.balance, won ? 1100 : 900);
+    assert.equal(league.players.alice.streak, won ? 1 : 0);
+    settleLeague(league, [result()], reopenedAt + 1, installation);
+    assert.equal(league.players.alice.balance, won ? 1100 : 900);
+  }
+});
+test("the confirmation timestamp determines the grace cutoff for solo and matched duels", () => {
+  const deadline = start + ROUND_MS + REFUND_GRACE_MS;
+  for (const mode of ["solo", "duel"]) {
+    for (const offset of [-1, 0, 1]) {
+      const league = emptyLeague();
+      if (mode === "duel") {
+        const duel = createDuel(league, input());
+        acceptDuel(league, duel.id, "bob", "sleep", start - 20);
+      } else placePrediction(league, input());
+      const confirmed = { ...result(), settledAt: deadline + offset };
+      settleLeague(league, [confirmed], deadline + 1000, installation);
+      const timely = offset <= 0;
+      assert.equal(league.predictions[0].outcome, timely ? "won" : "refunded");
+      assert.equal(league.players.alice.balance, timely ? 1100 : 1000);
+      if (mode === "duel") {
+        assert.equal(league.predictions[1].outcome, timely ? "lost" : "refunded");
+        assert.equal(league.players.bob.balance, timely ? 900 : 1000);
+      }
+    }
+  }
+});
+test("reopening settles earlier timely solo results before calculating later streak returns", () => {
+  const league = emptyLeague();
+  placePrediction(league, input());
+  placePrediction(league, input({
+    round: 3,
+    now: start + ROUND_MS - 1000,
+    start: start + ROUND_MS,
+    end: start + 2 * ROUND_MS,
+  }));
+  const results = [
+    { ...result(3), settledAt: start + 2 * ROUND_MS + 1000 },
+    result(),
+  ];
+  settleLeague(league, results, start + 2 * ROUND_MS + REFUND_GRACE_MS + 1, installation);
+  assert.deepEqual(league.predictions.map(p => p.outcome), ["won", "won"]);
+  assert.deepEqual(league.predictions.map(p => p.multiplier), [2, 2.25]);
+  assert.equal(league.players.alice.balance, 1225);
+  assert.equal(league.players.alice.streak, 2);
+});
 test("consecutive wins escalate and cap the multiplier; loss resets it", () => {
   const league = emptyLeague();
   for (let i = 0; i < 6; i++) {
@@ -370,6 +425,38 @@ test("two-wallet duel escrows equal stakes and pays the winning pot", () => {
   assert.equal(league.players.bob.balance, 900);
   assert.equal(league.players.alice.streak, 0);
   assert.equal(duel.status, "settled");
+});
+test("reopening matched duels after grace pays timely confirmed results, including ties", () => {
+  for (const work of [280, 0, 600]) {
+    const league = emptyLeague();
+    const duel = createDuel(league, input());
+    acceptDuel(league, duel.id, "bob", "sleep", start - 20);
+    const reopenedAt = start + ROUND_MS + REFUND_GRACE_MS + 1;
+    settleLeague(league, [result(2, work)], reopenedAt, installation);
+    const tie = work === 600;
+    const hostWon = work === 280;
+    assert.equal(league.predictions[0].outcome, tie ? "refunded" : hostWon ? "won" : "lost");
+    assert.equal(league.predictions[1].outcome, tie ? "refunded" : hostWon ? "lost" : "won");
+    assert.equal(league.players.alice.balance, tie ? 1000 : hostWon ? 1100 : 900);
+    assert.equal(league.players.bob.balance, tie ? 1000 : hostWon ? 900 : 1100);
+    assert.equal(league.players.alice.streak, 0);
+    assert.equal(league.players.bob.streak, 0);
+    assert.equal(duel.status, "settled");
+    const settled = JSON.stringify(league);
+    settleLeague(league, [result(2, work)], reopenedAt + 1, installation);
+    assert.equal(JSON.stringify(league), settled);
+  }
+});
+test("a completed missing-data duel refund is never reversed by later history", () => {
+  const league = emptyLeague();
+  const duel = createDuel(league, input());
+  acceptDuel(league, duel.id, "bob", "sleep", start - 20);
+  const deadline = start + ROUND_MS + REFUND_GRACE_MS;
+  settleLeague(league, [], deadline, installation);
+  const refunded = JSON.stringify(league);
+  settleLeague(league, [result()], deadline + 1, installation);
+  assert.equal(JSON.stringify(league), refunded);
+  assert.ok(league.predictions.every(p => p.outcome === "refunded"));
 });
 test("duels refuse guests, self-matches, same bands and late acceptance", () => {
   const league = emptyLeague();

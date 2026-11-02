@@ -12,59 +12,74 @@
     "compiler": "TypeScript 5.9.3"
   },
   "unitTests": {
-    "passed": 23,
+    "passed": 28,
     "failed": 0
   },
   "browserScenarios": [
     {
+      "name": "Chromium: reopening waits for history, settles timely solo wins/losses, refunds missing or late data",
+      "passed": true,
+      "durationMs": 2421
+    },
+    {
+      "name": "Chromium: maximum-length player name keeps both history filters and CSV inside mobile viewport",
+      "passed": true,
+      "durationMs": 760
+    },
+    {
       "name": "Chromium: prediction, exact result, streak payout, duplicate prevention, history, CSV and leaderboard",
       "passed": true,
-      "durationMs": 1484
+      "durationMs": 1261
     },
     {
       "name": "Chromium: missing data returns reserved stake after 20-minute grace",
       "passed": true,
-      "durationMs": 580
+      "durationMs": 435
     },
     {
       "name": "Chromium: relief threshold, once-per-day claim and name editing",
       "passed": true,
-      "durationMs": 698
+      "durationMs": 653
     },
     {
       "name": "Chromium: available history settles a pick during a wheel-status outage",
       "passed": true,
-      "durationMs": 793
+      "durationMs": 756
     },
     {
       "name": "Chromium: EIP-6963 signature login, two-wallet duel and winner-takes-pot settlement",
       "passed": true,
-      "durationMs": 1570
+      "durationMs": 1616
+    },
+    {
+      "name": "Chromium: reopening a matched two-wallet duel after grace pays the confirmed pot",
+      "passed": true,
+      "durationMs": 1032
     },
     {
       "name": "Chromium: rejected signature stays signed out and can retry",
       "passed": true,
-      "durationMs": 560
+      "durationMs": 540
     },
     {
       "name": "Chromium: modal keyboard focus, Escape return and history filter empty state",
       "passed": true,
-      "durationMs": 540
+      "durationMs": 589
     },
     {
       "name": "Chromium: 320/390/740/900/1440 layout, first action, reduced motion and axe audit",
       "passed": true,
-      "durationMs": 2834
+      "durationMs": 2247
     },
     {
       "name": "Chromium: API failure is recoverable and never fabricates live data",
       "passed": true,
-      "durationMs": 364
+      "durationMs": 310
     },
     {
       "name": "WebKit: mobile primary prediction and wallet sheet",
       "passed": true,
-      "durationMs": 2185
+      "durationMs": 4548
     }
   ],
   "designProbe": [
@@ -72,7 +87,7 @@
       "name": "render",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 9129,
+      "durationMs": 9197,
       "output": "renders, no script errors or missing local files\nexternal hosts: api.squeekchain.com"
     },
     {
@@ -93,7 +108,7 @@
       "name": "contrast",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 1,
+      "durationMs": 0,
       "output": "all measured text meets 4.5:1 (3:1 large)"
     },
     {
@@ -128,14 +143,14 @@
       "name": "type-faces",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 1,
+      "durationMs": 0,
       "output": "families (1): nunito sans\nweights (3): 400, 600, 800"
     },
     {
       "name": "glyphs",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 0,
+      "durationMs": 1,
       "output": "no em dashes or emoji in text"
     },
     {
@@ -149,7 +164,7 @@
       "name": "repetition",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 2,
+      "durationMs": 1,
       "output": "no repeated lines"
     },
     {
@@ -272,25 +287,76 @@
   "failedLiveResources": [],
   "axeViolations": [],
   "exportSha256": {
-    "index.html": "474b603c55855284b0263161ba1b2b33578517fa83c60b00d3de0792536f6651",
     "favicon.svg": "1973211e32376ad7c574312ef7a8a7fe0d008eb85a561082f8ba3555c8028bc8",
-    "share.png": "6846c6043891e9bc8506fe9b7215ced2254436b01d1332a194002e3222f6eb71",
-    "assets/index-B60QhPD9.js": "57b1d2e5788a630e714a34ba16a1e04904029a54282b0997fdbcd9a135e12979",
-    "assets/dist-BFFSo6mz.js": "19f2a5cc845f7e2c12050da6ee93441a169e2663898300deb08eb7fb6ccfea97",
-    "assets/ccip-yY84DLA7.js": "50a40c9c161880f445b930822914e93999f2317504ac47bf90f2bb85e0428850",
-    "assets/index-DEzPNR3Q.css": "f7b39238905be5ea671d219aa059cd07d4ecb9804c704ccd962988964c2145ac",
+    "share.png": "b880f179bb6bbf50fb5c63ca447da953e30c1a5a394efe811ad08399233d447d",
+    "index.html": "866956f88559f40134334d871dceb23cabb1d7258fd9119440ecf829a732b1c6",
     "fonts/nunito-sans-latin.woff2": "29e3890496844a9ea81975c52771c587c872b4eb317026422d1995b88d21b57d",
     "fonts/OFL.txt": "efbb0c9e864cef973982d9a17567e6be5c3d1759695574586f3f18c7ecca064b",
-    "wallets/coinbase.svg": "beb2151c1c048509f7a4cdf0fec564f0769c5dc3407ff64e1aedb20e2e40b7fa",
     "wallets/metamask.svg": "892c7dfab8c4ca5682878dda3f42f55a75195d7d365e4adb0832845f3a0a2135",
     "wallets/LICENSE.txt": "5095037afa1ba03be36e04305c01ec9ee600e14377738a026482b1a888c4e365",
+    "wallets/rabby.svg": "dcae4de88ebfa10cffa1fe28df13d7c8c0b40736ef2b704f1f2fc348e777e443",
     "wallets/phantom.svg": "f841f8112e131259a2e5123177950099c79487e61e77971f4e193e6c374419eb",
-    "wallets/rabby.svg": "dcae4de88ebfa10cffa1fe28df13d7c8c0b40736ef2b704f1f2fc348e777e443"
+    "wallets/coinbase.svg": "beb2151c1c048509f7a4cdf0fec564f0769c5dc3407ff64e1aedb20e2e40b7fa",
+    "assets/dist-BhQBdJuz.js": "634c754df16112021bb826b0bd384ea50a05073bcf9174fd1823ae71a6d8c42b",
+    "assets/index-Cc8eN7cu.css": "78d56dd0de3be1a41253e6cde95bda9a9d40a37a7de53d09a66d5a9530183898",
+    "assets/index-Prd5SuH3.js": "65409050814789cb7825d30d9e6d72c9d53e33f35a69e4b29f52af1fd468951e",
+    "assets/ccip-8t59GTtM.js": "da39212dcb34a75cd47d18c95b85fdabb48612f219b66d6e83c9df0ca3374a4b"
   },
   "notes": [
-    "Ordinary npm scripts passed in a clean temporary source copy with normal parent-directory dependency resolution.",
-    "The normal npm build and submitted export are byte-identical.",
-    "Real API smoke audit is separate from synthetic API browser scenarios.",
+    "Ordinary npm typecheck, unit tests and production build passed in a clean temporary source copy using the existing lockfile and an external dependency tree.",
+    "The ordinary npm build and submitted export are byte-identical; no dependency or ignore-file changes were made.",
+    "Revision browser scenarios use synthetic official-API responses; the pinned design probe reached the real API without script or missing-local-resource errors.",
     "Physical wallets, native mobile app handoffs and Coinbase passkey creation were not exercised."
-  ]
+  ],
+  "revision": {
+    "findings": [
+      {
+        "id": "e43732a78804bc9b67f848620f1a3eaf792f628a14aca555d74692bd8e86d30b",
+        "verdict": "fixed"
+      },
+      {
+        "id": "fe946f29bdd75889f08c9e525baabad9c41d2f0031b96b87b59e6e43496eab0c",
+        "verdict": "fixed"
+      },
+      {
+        "id": "36c004fe0888b7173908aac47864d9fd0ab0b50025a6d07d8bb2dfbe29ac547b",
+        "verdict": "fixed"
+      }
+    ],
+    "beforeFix": {
+      "soloRunBalance": 1000,
+      "soloRunOutcome": "refunded",
+      "soloSleepBalance": 1000,
+      "soloSleepOutcome": "refunded",
+      "longName320ScrollWidth": 326,
+      "longName320FilterWidth": 298,
+      "newUnitRegressionsFailed": 4
+    },
+    "afterFix": {
+      "soloRunBalance": 1100,
+      "soloRunOutcome": "won",
+      "soloRunPayout": 200,
+      "soloRunStreak": 1,
+      "soloSleepBalance": 900,
+      "soloSleepOutcome": "lost",
+      "soloSleepPayout": 0,
+      "duelHostBalance": 1100,
+      "duelGuestBalance": 900,
+      "longName320ScrollWidth": 320,
+      "longName320FilterWidth": 264,
+      "publicShareMatchesExport": true
+    },
+    "commands": {
+      "npm run typecheck": 0,
+      "npm test": 0,
+      "npm run build": 0,
+      "node tests/browser.mjs": 0,
+      "node .imd/reads/skills/design-critic/scripts/taste.mjs --out test/scratch/taste": 0
+    },
+    "limitations": [
+      "Reopening and maximum-length-name regressions exercised in Chromium; WebKit exercised the existing mobile prediction and wallet-sheet scenario.",
+      "Physical wallet/app handoffs, real Coinbase passkey onboarding, screen readers, and browser-native zoom were not tested."
+    ],
+    "originalMeasurements": "Unchanged supplementary font, contrast, text-resize, RTL, phone-wallet and mobile-primary measurements below are retained from the accepted implementation; current probe and browser outcomes are updated above."
+  }
 }
