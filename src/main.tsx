@@ -1,14 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { WagmiProvider } from "wagmi";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { walletConfig } from "./lib/wallet";
 import App from "./App";
 import "./style.css";
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
-});
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { failed: boolean }
@@ -21,12 +14,13 @@ class ErrorBoundary extends React.Component<
     if (this.state.failed)
       return (
         <main className="recovery">
-          <h1>Squeek Streak</h1>
+          <h1>Squeek Alert Lab</h1>
           <p>
-            The game could not load. Your saved points have not been changed.
+            The toolkit could not load. Reload to try again; saved settings stay
+            in this browser.
           </p>
           <button className="button primary" onClick={() => location.reload()}>
-            Reload game
+            Reload toolkit
           </button>
         </main>
       );
@@ -35,10 +29,6 @@ class ErrorBoundary extends React.Component<
 }
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <WagmiProvider config={walletConfig}>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </WagmiProvider>
+    <App />
   </ErrorBoundary>,
 );

@@ -2,15 +2,13 @@ import { createServer } from "node:http";
 import { readFile, stat, mkdir } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-
-export async function dependency(name, entry = "", publicSpecifier = name) {
+export async function dependency(name, entry = "index.mjs") {
   return process.env.SQUEEK_DEPENDENCIES
     ? import(
-        pathToFileURL(
-          resolve(process.env.SQUEEK_DEPENDENCIES, name, entry || "index.mjs"),
-        ).href
+        pathToFileURL(resolve(process.env.SQUEEK_DEPENDENCIES, name, entry))
+          .href
       )
-    : import(publicSpecifier);
+    : import(name);
 }
 export async function preview() {
   const root = resolve("dist");
@@ -28,11 +26,7 @@ export async function preview() {
       const pathname = decodeURIComponent(
         new URL(req.url, "http://localhost").pathname,
       );
-      if (!pathname.startsWith("/preview/")) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
+      if (!pathname.startsWith("/preview/")) throw new Error("Not found");
       const file = resolve(
         root,
         pathname.slice("/preview/".length) || "index.html",
@@ -55,68 +49,129 @@ export async function preview() {
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
-
-// Synthetic API records are used only by tests, never bundled into the app.
 export function fixtures(now = Date.now()) {
-  const currentStart = Math.floor(now / 600_000) * 600_000;
-  const installationId = "browser-test-only";
   return {
-    status: {
-      installationId,
-      generatedAt: new Date(now).toISOString(),
-      measurement: {
-        freshness: "online",
-        observedAt: new Date(now).toISOString(),
-        staleAfterSeconds: 120,
-        coreStatus: "IDLE",
-        rpmMilli: 0,
-        speedMmPerSecond: 0,
-        cumulativeWorkUnits: "2400",
-      },
-      builder: {
-        anchor: { settledThroughRound: "100" },
-        queued: { openRoundWorkUnits: "0" },
-      },
-    },
-    history: {
-      status: "available",
-      installationId,
-      generatedAt: new Date(now).toISOString(),
-      recentSettlements: [298, 0, 67, 530, 415, 8, 145].map((work, i) => ({
-        settledThroughRound: String(100 - i),
-        previousSettledThroughRound: String(99 - i),
-        workAdded: String(work),
-        confirmationStatus: "safe",
-        blockTimestamp: new Date(currentStart - i * 600_000).toISOString(),
-      })),
-      mining: {
-        nextRound: {
-          round: "101",
-          startsAt: new Date(currentStart).toISOString(),
-          endsAt: new Date(currentStart + 600_000).toISOString(),
-        },
-      },
-    },
-    currentStart,
+    now,
+    rpm: 0,
+    work: 42,
+    round: 100,
+    statusCalls: 0,
+    historyCalls: 0,
+    statusFailure: false,
+    historyFailure: false,
+    stale: false,
+    telegramError: 0,
+    telegramFailNetwork: false,
+    telegramDelay: false,
+    retrySeconds: 3,
+    messages: [],
+    chatMode: "single",
+    chats: [{ id: 7734128, first_name: "Test recipient" }],
+    updatesCalls: 0,
+    urls: [],
   };
 }
 export async function mockFeed(page, state) {
   await page.route("https://api.squeekchain.com/v1/**", async (route) => {
-    if (
-      state.failure ||
-      (state.statusFailure && route.request().url().includes("/status"))
-    ) {
+    const status = route.request().url().includes("/status");
+    if (status) state.statusCalls++;
+    else state.historyCalls++;
+    if (status ? state.statusFailure : state.historyFailure) {
       await route.fulfill({ status: 503, body: "Unavailable" });
       return;
     }
-    const data = route.request().url().includes("/status")
-      ? state.status
-      : state.history;
+    const date = new Date(state.now - (state.stale ? 180000 : 0)).toISOString();
+    const data = status
+      ? {
+          installationId: "browser-fixture",
+          generatedAt: date,
+          measurement: {
+            freshness: "online",
+            observedAt: date,
+            staleAfterSeconds: 120,
+            coreStatus: state.rpm ? "RUNNING" : "IDLE",
+            rpmMilli: state.rpm * 1000,
+          },
+          builder: {
+            status: "available",
+            queued: { openRoundWorkUnits: String(state.work) },
+          },
+        }
+      : {
+          installationId: "browser-fixture",
+          generatedAt: date,
+          status: "available",
+          recentSettlements: [state.round - 1, state.round].map((round) => ({
+            previousSettledThroughRound: String(round - 1),
+            settledThroughRound: String(round),
+            workAdded: "42",
+            confirmationStatus: "safe",
+            blockTimestamp: date,
+          })),
+          mining: {
+            nextRound: { round: String(state.round + 1) },
+            recentCheckpoints: [
+              {
+                afterRound: String(state.round - 1),
+                throughRound: String(state.round),
+                blockTimestamp: date,
+                confirmationStatus: "safe",
+              },
+            ],
+          },
+        };
     await route.fulfill({
-      status: 200,
       contentType: "application/json",
       body: JSON.stringify(data),
-      headers: { "Access-Control-Allow-Origin": "*" },
     });
   });
+  await page.route("https://api.telegram.org/**", async (route) => {
+    const request = route.request();
+    if (request.url().endsWith("/getUpdates")) {
+      state.updatesCalls++;
+      const result =
+        state.chatMode === "empty"
+          ? []
+          : state.chats.map((chat) => ({ message: { chat } }));
+      const conflict = state.chatMode === "conflict";
+      await route.fulfill({
+        status: conflict ? 409 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          conflict ? { ok: false, error_code: 409 } : { ok: true, result },
+        ),
+      });
+      return;
+    }
+    state.messages.push(
+      Object.fromEntries(new URLSearchParams(request.postData())),
+    );
+    if (state.telegramFailNetwork) {
+      await route.abort("failed");
+      return;
+    }
+    if (state.telegramDelay) {
+      state.telegramRelease = () =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      return;
+    }
+    await route.fulfill({
+      status: state.telegramError || 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        state.telegramError
+          ? {
+              ok: false,
+              error_code: state.telegramError,
+              description: "UNTRUSTED RESPONSE",
+              parameters: { retry_after: state.retrySeconds },
+            }
+          : { ok: true, result: { message_id: state.messages.length } },
+      ),
+    });
+  });
+  page.on("request", (request) => state.urls.push(request.url()));
 }

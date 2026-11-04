@@ -1,97 +1,94 @@
-# Squeek Streak design system
+# Squeek Alert Lab design system
 
 ## Overview
 
-Squeek Streak is a compact prediction game for the Squeekchain hamster wheel. Its visual idea is a small, illustrated hamster economy: warm seed-orange actions, forest-green text, a pale green wheel enclosure, and simple cream surfaces. The play form is the product, with no separate marketing hero.
+A personal Telegram alert toolkit for people following the Squeekchain hamster. The interface leads with owning and configuring your own bot, rather than joining somebody else's broadcast. Its visual idea is a small night-time lab: dark instrument panels, a warm amber primary action, and the existing Squeek hamster in a muted green wheel.
 
-The page uses consistent edges, generous space between groups, compact data labels, and one orange primary action. The hamster SVG is original artwork implemented in `src/components/Art.tsx`; its sleepy and active variants identify the four work bands. The page is English-only with one light theme.
+The setup is the product, with no separate marketing hero. On a wide screen, setup and triggers share an edge in the main column; the live wheel and open-page guidance sit alongside them. The log follows both. English and one dark theme are intentional. Existing hamster artwork and the local Nunito Sans font are carried forward; wallet and prediction-game UI are removed from this app.
 
 ## Colors
 
-Canonical tokens are in `src/style.css`, using hexadecimal sRGB primitives and semantic aliases. No dark-theme token block is implemented.
+The canonical hexadecimal sRGB primitives and semantic aliases are in `src/style.css:10`. Components use the semantic roles below; artwork has its own illustrative colors in `src/components/Art.tsx` and `src/assets/share.svg`.
 
-| Semantic role | Token / source value | Use |
-| --- | --- | --- |
-| Page background | `--color-bg` → `--cream-100: #f7f8f2` | Whole page |
-| Surface | `--color-surface` → `--cream-50: #fcfcf9` | Form, league, account strip, dialogs |
-| Neutral inset/hover | `--cream-200: #edf0e5` | Presets, soft control states, neutral badges |
-| Structure | `--color-border` → `--cream-300: #dce1d4` | Inputs, separators, neutral buttons |
-| Primary text | `--color-text` → `--forest-950: #263c30` | Headings, data, body |
-| Secondary text | `--color-muted` → `--forest-600: #63715f` | Captions and hints |
-| Strong secondary text | `--forest-700: #52624f` | Wheel labels and quiet controls |
-| Wheel/background accent | `--forest-200: #e8eedf` | Live wheel surface, avatars, streak highlights |
-| Primary action | `--color-accent` → `--orange-600: #bc461f` | Lock prediction, selected pick border, active tab underline |
-| Action hover | `--color-accent-hover` → `--orange-700: #aa3c19` | Hover on filled actions |
-| Selected/pending background | `--orange-100: #fae9dd` | Selected band, pending result, notifications |
-| Success | `--color-success` → `--green-700: #34603c` | Wins, profit, live state; `--green-100: #e9f1e3` backgrounds |
-| Loss/error | `--color-danger` → `--red-700: #a43c33` | Inline errors and negative profit |
-| Sleep category | `--violet-700: #6c4c83`, `--violet-100: #efe8f5` | Confirmed Sleep badges |
-| Focus | `--color-focus: #315c39` | 2px focus outline, 4px offset |
+| Semantic token                            | Primitive / value                                  | Job                                             |
+| ----------------------------------------- | -------------------------------------------------- | ----------------------------------------------- |
+| `--color-bg`                              | `--slate-950`, `#121719`                           | Page and input backgrounds                      |
+| `--color-surface`                         | `--slate-900`, `#1b2225`                           | Main panels                                     |
+| `--color-control`                         | `--slate-850`, `#222a2d`                           | Neutral buttons, logo backing, empty-state icon |
+| `--color-border`                          | `--slate-800`, `#2c363a`                           | Panel outlines and separators                   |
+| `--color-control-border`                  | `--slate-700`, `#526167`                           | Input/button outlines and disabled toggle track |
+| `--color-text`                            | `--slate-100`, `#eff2ed`                           | Headings, values, body and labels               |
+| `--color-muted`                           | `--slate-400`, `#a6b2b6`                           | Hints, supporting copy, timestamps              |
+| `--color-accent`                          | `--amber-300`, `#f5c276`                           | Start/stop action and enabled toggles           |
+| `--color-accent-hover`, `--color-focus`   | `--amber-200`, `#ffcf8c`                           | Action hover and keyboard outline               |
+| `--color-on-accent`                       | `--amber-950`, `#2b2115`                           | Text/icons on amber                             |
+| `--color-positive`, `--color-positive-bg` | `--green-300`, `#9bceae`; `--green-950`, `#213b2d` | Fresh/active status and delivered alert icons   |
+| `--color-sleep`                           | `--lilac-300`, `#b8b2dd`                           | Sleep trigger illustration                      |
+| `--color-error`, `--color-error-bg`       | `--red-300`, `#ffb4ac`; `--red-950`, `#442925`     | Field/feed failures and failed alert icons      |
 
-The Stroll history category uses `#6d5a27` on `#f2eddc`. The sleeping state uses `#52624f` on `#dce5d4`; the active state uses `#34603c` on `#d6e5ca`. Illustration-only greens, orange fur, and pink ears are contained in `Art.tsx` and do not replace functional text tokens.
-
-Measured rendered text pairs: primary button white on orange **5.21:1**; heading on page **11.10:1**; secondary text on page **4.85:1**; selected-band text **10.03:1**; sleeping status **5.03:1**; live label **6.15:1**; Sleep result badge **5.85:1**. These are sampled pairs, with the pinned probe additionally checking all measured visible text in its inspected states. Text, icons, and selected indicators carry meaning alongside color.
+Only one filled action competes for attention in the setup form. Neutral buttons are outlined. Status always has text as well as color; log icons also change shape. The pinned rendered probe passed text contrast in its inspected states. Sample rendered pairs and measured ratios are recorded in `artifacts/rendered-metrics.json`; there is no claim of a light-theme audit.
 
 ## Typography
 
-One locally bundled variable **Nunito Sans** face, `public/fonts/nunito-sans-latin.woff2`, covers weights 400–800. The interface uses **400, 600, and 800**. The browser confirmed the intended font loaded; no external font request is needed. Fallbacks are `ui-rounded, system-ui, sans-serif`. The OFL license is beside the font.
+One local variable **Nunito Sans** font, `public/fonts/nunito-sans-latin.woff2`, is declared for weights 400–800; the interface uses **400, 600 and 800**. Fallbacks are `ui-rounded, system-ui, sans-serif`. The font's OFL license ships beside it. It is preloaded in `index.html`; no font service is contacted.
 
-The six declared sizes are `--text-xs: .75rem`, `--text-sm: .875rem`, `--text-base: 1rem`, `--text-lg: 1.25rem`, `--text-xl: 1.75rem`, and `--text-display: 2.5rem` (12, 14, 16, 20, 28, 40 px at the default root size). Captions are 12px; controls and compact prose are 14px; normal text and mobile inputs are 16px; section titles are 16–20px; the page title is 40px on desktop, 28px on phones, and 20px below 360px.
+| Token            | Size at a 16px root | Use                                   |
+| ---------------- | ------------------- | ------------------------------------- |
+| `--text-xs`      | .75rem / 12px       | Hints, status labels, log metadata    |
+| `--text-sm`      | .875rem / 14px      | Compact copy, buttons, trigger labels |
+| `--text-base`    | 1rem / 16px         | Inputs, body, mobile section titles   |
+| `--text-lg`      | 1.25rem / 20px      | Desktop panel titles and wheel state  |
+| `--text-xl`      | 1.75rem / 28px      | Mobile H1 and metric values           |
+| `--text-display` | 2.5rem / 40px       | Desktop H1                            |
 
-Body line-height is 1.5. Headings use 1.2, with 1.3 in dialog titles and counters; longer rule text uses 1.6. H1 tracking is −.045em at display size, −.04em at 28px, and −.025em at the smallest width. Section heading tracking is −.02em. Headings balance wrapping and prose uses `text-wrap: pretty`. Changing numbers use tabular numerals. There is no monospace prose or uppercase kicker label. Critical amounts and full wallet addresses remain reachable and selectable; the wallet dialog wraps the complete address.
+Body line height is 1.5; supporting notes use 1.6–1.7, H1 uses 1.15, H2 1.3 and H3 1.4. The H1 has −.04em tracking, H2 −.02em, and regular copy natural tracking. Headings balance wrapping, prose uses pretty wrapping and a 70ch maximum. Changing numbers use tabular numerals. Inputs stay 16px on phones to avoid iOS input zoom. IDs and messages wrap; critical content is not ellipsized. Natural casing is used throughout; RPM is a unit, not a section kicker.
 
 ## Layout
 
-`src/style.css` defines `.page-container` and `.header-inner` with a 1,240px maximum border-box width and 32px desktop side padding. The main content’s effective desktop width is 1,176px. The page spacing vocabulary is 4, 8, 12, 16, 24, 32, and 48px (`--space-1` through `--space-7`); declarations also use matching literal values and a few optical adjustments.
+`src/style.css:185` defines the shared `.header-inner`, `.page-container` and `.site-footer` edges: **1264px maximum border-box width**, auto inline margins and 32px desktop insets. The effective maximum content width is 1200px. Spacing tokens are 4, 8, 12, 16, 24, 32 and 48px; matching literals are also used. Panel padding is 28px on desktop, 24px at the intermediate width and 20px on phones (16px below 360px).
 
-The desktop game grid is `.88fr / 1.12fr` with a 24px gap: live wheel first, prediction form second. The insights row reverses the emphasis to `1.12fr / .88fr`. History/leaderboard spans the container. The account strip sits immediately above the game. This is a single page, with anchored navigation and stateful views.
+`.workspace` uses `minmax(0,1.58fr) / minmax(0,1fr)` with a 24px gap. Setup and triggers stack in `.configure-column`; `.observe-column` contains the wheel and open-page note. Form fields share a row when space allows. The alert log spans the main width. The explanatory steps are below the working product.
 
-| Breakpoint | Implemented adaptation |
-| --- | --- |
-| Above 1,500px | Main top padding grows to 48px |
-| 1,100px and below | Tighter header and surface padding, quieter secondary typography |
-| 900px and below | 24px page inset, compact desktop grid, best-streak stat hidden |
-| 740px and below | Header navigation collapses; header can wrap for enlarged text; game becomes one column with the prediction form first; insights stack; account strip retains name/balance/relief; history shows stake inside the pick cell; its filter row occupies the available width and CSV sits below |
-| 440px and below | 16px page inset, 28px H1, compact four-across bands, bottom-aligned wallet dialog, stacked history toolbar |
-| 360px and below | 20px H1, smaller brand/spacing, simplified table icons, footer stacks |
+| Breakpoint         | Implemented adaptation                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| At or below 1120px | Panel padding tightens; setup fields stack; workspace becomes 1.3fr / 1fr; the secondary intro note hides                                                                                              |
+| At or below 800px  | Workspace becomes one column; page insets become 24px; setup fields share a row again; live panel and its note can share a row; H1 becomes 28px; instructions move below their introduction            |
+| At or below 560px  | 16px page insets; fields stack; live panel/note stack; compact header hides the help anchor; panel titles become 16px; log toolbar and entry metadata wrap; instructions become vertical numbered rows |
+| Below 360px        | 12px page insets; 16px panel padding; brand text can stack; action buttons stack with Start watching first                                                                                             |
 
-Text containers grow naturally. Dialogs have a viewport-relative maximum height and their own scrolling; backgrounds do not scroll while a dialog is open. Buttons stay inset from screen edges. The page has no fixed bottom action bar. At 390×844, the main prediction action is visible in the first screen; its top is approximately 679px and height 48px. Reflow was checked at 320, 390, 740, 900, and 1440px. CSS text enlargement to 200% at 390px and an RTL mirror were also checked; browser-native zoom and full RTL localization were not.
-
-The mobile `.history-filters` uses `flex: 1 1 100%` and `min-width: 0`; `.select-label:first-child` also has `min-width: 0`, allowing the player selector to shrink beside Result. A 24-character player name was checked at 320, 390, 440, 740, and 1440px. At 320px, both selectors fit the 264px toolbar and the document remains 320px wide. Full names remain available in the native option list and profile editor.
+There is no sticky chrome or fixed bottom action to obscure content. Text containers grow naturally. Main actions remain in normal flow and inset from the screen edge. The first 390×844 screen includes the product, inputs, both setup actions, privacy note and the open-page reminder. Browser reflow was checked at 320, 390, 560, 740, 800, 900, 1120 and 1440px, plus 200% CSS text enlargement and an RTL mirror. These are not native zoom or localization tests.
 
 ## Elevation & depth
 
-Main surfaces are flat, separated by spacing and tone. Structural borders appear on inputs, selected bands, neutral buttons, and data separators; surfaces do not combine borders and shadows. Dialogs alone use `0 20px 80px #1d2f2833`, with a `#172c2680` backdrop and 3px backdrop blur. The native top layer provides dialog stacking and inert background behavior.
+The interface is deliberately flat: one surface tone and structural 1px borders, no panel shadows, nested cards, backdrop effects or gradients. The wheel has its own dark SVG enclosure, muted spokes and a ground ellipse. Panel separation comes from spacing and tone. No dialogs or elevated overlays are implemented.
 
 ## Shapes
 
-The shared radius tokens are 8px for controls (`--radius-sm`), 12px for groups (`--radius-md`), 20px for main surfaces/dialogs (`--radius-lg`), and 100px for status pills. Mobile main surfaces use 16px; mobile bands use 9px. Circular avatars and streak steps are explicit exceptions. Band borders carry selection; text is not clipped to preserve rounded corners.
+`--radius-sm` is 8px for buttons/inputs, `--radius-md` 12px for phone panels, and `--radius-lg` 20px for desktop panels. Status dots, step counters, empty-state markers and log icons are circular. Toggle tracks are 40×24px with a 16px thumb. The native switch input has a 44px hit box, and its surrounding label is also clickable. Main buttons and bot/chat inputs are at least 48px high. Compact utilities and inline links use the guide's target-spacing exception; the probe reports nine controls below the comfortable 44px size, without a target-spacing failure.
 
 ## Components
 
-| Component / pattern | Source and behavior |
-| --- | --- |
-| `Hamster`, `WheelArt`, `Icon` | `src/components/Art.tsx`; original decorative SVG variants, one `currentColor` outline icon set. Hamster mood matches a band; wheel rotation reflects a fresh running feed. SVG is hidden from assistive technology where adjacent text supplies meaning. |
-| `BandPicker` | `src/App.tsx`; a native radio group inside a fieldset. Four labeled choices, selected dot/check and border, visible keyboard focus on the label, native arrow-key behavior. |
-| Stake + payout | `src/App.tsx`; labeled 16px input, 50/100/250 presets, inline validation, whole 10–500 SP limit, stake-inclusive payout preview. Invalid long input cannot expand the return display. |
-| Buttons | `src/style.css`; `.button.primary` for the current action, `.secondary` and `.small-button` for peers, `.icon-button` for named utilities, `.text-button` for quiet help/export. Hover is gated to hover-capable pointers. Disabled, pressed, and focus states are defined. |
-| Live panel | `src/App.tsx`; real state, three metrics, official round/count data, total work, source link, and explicit refresh/retry. Loading and stale states never substitute sample metrics. |
-| `Modal` | `src/components/Modal.tsx`; native `dialog`, title association, close button, Escape/backdrop dismissal, explicit Tab boundary handling, background scroll lock, and trigger focus restoration. |
-| `Wallet` | `src/components/Wallet.tsx`; one connect control with EIP-6963 names/marks, browser fallback, Coinbase, mobile open-in rows, signature pending/retry/rejection, verified identity, and disconnect. Wallet marks retain vendor colors. |
-| Mode/activity tabs | `src/App.tsx`; native buttons with `aria-pressed`, active underline, and persistent visible names; these are button groups, not incomplete ARIA tab widgets. |
-| History/leaderboard | `src/App.tsx`; consistent aligned rows, local-league disclosure, player/result filters, clear empty state, CSV export, result text plus color, and expandable history. |
-| Relief/profile/rules | `src/App.tsx`; disclosed low-balance threshold/reset time, name editing, and exact game rules in the shared native dialog. |
+| Component / source                                      | Use and states                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup form, `src/App.tsx`                               | Visible labels, masked/revealable token, chat ID entry/lookup, inline submit validation, focus on first invalid field, explicit test and start/stop actions. Bot/chat inputs lock while watching, finding chats or sending a test. Forgetting requires a local inline confirmation. Lookup feedback wraps even unbroken long chat names.            |
+| Buttons, `src/style.css`                                | `.button.primary` for watching; `.button.secondary` for the test and chat choices; `.icon-button` for refresh; `.text-button` / `.inline-action` for small utilities. Pending controls use native disabled; every action has visible focus and pressed/hover states.                                                                                |
+| Trigger row, `src/App.tsx`                              | `.trigger-label` wraps a native checkbox with `role="switch"`, title, description and artwork. Space toggles it; a static thumb and color show state. The labeled numeric target disables with its trigger and retains the last valid value if an invalid draft is entered.                                                                         |
+| Live panel, `src/App.tsx`                               | Official running/sleeping state, RPM, current round work, latest safely settled round and polling countdown. Loading, stale and failure states show uncertainty and recovery instructions. Missing measurements use a dash. Refresh is disabled while a poll is outstanding.                                                                        |
+| `Hamster`, `WheelArt`, `Icon`, `src/components/Art.tsx` | Original hamster identity retained with sleepy/active variants; wheel recolored for the dark theme; one `currentColor` outline icon set. Decorative SVG is hidden from assistive technology because adjacent text carries the meaning. Wheel state has a static label; the wheel is not continuously animated.                                      |
+| Alert log, `src/App.tsx`                                | Session-only list, timestamps, delivery states, sent count, native filter, clear action, message disclosure via native details/summary, and manual retry. Failed network delivery explains ambiguity; rate limits disable retry until its deadline. Clear retains entries still being sent. Empty/filter-empty states explain how to fill the list. |
+| Notices, `src/App.tsx`                                  | Stable status/alert regions, field-specific error associations, storage failure feedback, persistent open-page reminder and direct-to-Telegram privacy copy.                                                                                                                                                                                        |
+| Shared page, `src/main.tsx`                             | Error boundary offers Reload toolkit; a skip link reaches bot setup. One H1, sequential headings and semantic header/main/aside/footer landmarks.                                                                                                                                                                                                   |
 
-High-frequency color/background transitions last 120ms with explicit properties. Press scaling is `.96` using `cubic-bezier(.2,0,0,1)`. Wheel motion is a 14-second linear rotation. All animation and press motion are inside `prefers-reduced-motion: no-preference`; running state also has a static text label. There are no staged page entrances, confetti, gradients, audio, or autoplay media.
+The 2px amber `:focus-visible` outline has a 4px offset, or 2px on fields. Toggle focus draws around its visible track rather than the transparent native input. Forced-colors overrides preserve a system-color outline and toggle border. Hover styling is gated to a hover-capable pointer. Under `prefers-reduced-motion: no-preference`, explicit color/border/transform transitions last 120ms; button press scale is .96 with `cubic-bezier(.2,0,0,1)`. There are no entrance animations, endless rotations or motion-only cues. Reduced motion disables those transitions.
 
-`public/share.png` is the 1,200×630 social card referenced by `og:image`. Its wordmark uses the local `public/favicon.svg` hamster mark, embedded before capture; the production build copies the complete PNG to `dist/share.png`.
+`index.html` supplies title, description, favicon, OG title/description/image and a large-image Twitter card. `public/share.png` is rendered from the editable `src/assets/share.svg` by `tests/share.mjs`.
 
-## Do’s and don’ts
+## Do's and don'ts
 
-- Reuse the page container, type scale, flat surfaces, and existing button styles for another section. Keep the main action visible before decorative explanation on phones.
-- Use the accent fill for the active task. Use neutral controls for help, filters, and navigation. Category badges may use their established state colors.
-- Preserve labels, the visible selection check, explicit data freshness, and local-league boundaries. Keep errors near the affected controls.
-- Keep wallet icons as vendor marks, illustrations as SVG, and fonts local. Avoid introducing an unrelated icon set, font, or theme.
-- Add a new section within the existing width/spacing system, choose an appropriate heading level, use the shared modal for an overlay, and check the real export at narrow widths, large text, and reduced motion.
-
-The design and review applied the pinned Better Interface six-domain reference, adapted from Jakub Krehel’s Better Interface (MIT, commit `267330e1adfc66a718fb65fa6918c1f06d0a689e`) and Paul Bakaus’s Impeccable documentation method (Apache-2.0, commit `9d715cc4f5564a990ca8345abfdd5df6dc9b41c8`). See `docs/licenses/design-guidance-LICENSE.txt` and the validation record for coverage and limitations.
+- Reuse the shared container, panel spacing, type scale and semantic tokens. Add new settings as native labeled controls with adjacent help and a clear enabled state.
+- Keep one filled primary action. Use the neutral secondary style for tests, retries and utilities.
+- Keep ownership, direct-to-Telegram delivery and the open-page requirement clear beside the setup.
+- Keep uncertain data visibly uncertain. Do not animate or fabricate a live state when the API is missing or stale.
+- Keep bot tokens masked and out of displayed messages, screenshots, logs and external links.
+- Preserve the flat surfaces, restrained motion and existing hamster identity. Do not add wallets, a competing hero, external fonts or another type scale.
+- For another section on this page, start with `.panel`, reuse the H2/field/button patterns and place it in normal flow. Verify its 320px reflow and keyboard path before adding new layout rules.

@@ -1,10 +1,48 @@
-import type { Band } from "../lib/api";
+type Band = "sleep" | "stroll" | "run" | "sprint";
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
     arrow: (
       <>
         <path d="M5 12h14m-6-6 6 6-6 6" />
+      </>
+    ),
+    telegram: <path d="m21 3-4 18-6-6-4 3 1-6L21 3ZM8 12l9-6-6 9M3 9l18-6" />,
+    eye: (
+      <>
+        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    sun: (
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
+      </>
+    ),
+    moon: <path d="M21 13a9 9 0 0 1-10-10 9 9 0 1 0 10 10Z" />,
+    flag: (
+      <>
+        <path d="M5 21V3m0 0c5-3 9 3 14 0v10c-5 3-9-3-14 0" />
+      </>
+    ),
+    gauge: (
+      <>
+        <path d="M4 19a10 10 0 1 1 16 0M12 12l5-5M4 12h2m12 0h2M12 4v2" />
+        <circle cx="12" cy="12" r="2" />
+      </>
+    ),
+    bell: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+      </>
+    ),
+    play: <path d="m8 4 12 8-12 8V4Z" />,
+    pause: <path d="M8 5v14M16 5v14" />,
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="11" rx="2" />
+        <path d="M8 10V6a4 4 0 0 1 8 0v4m-4 5v2" />
       </>
     ),
     wallet: (
@@ -192,10 +230,10 @@ export function WheelArt({
   return (
     <div className="wheel-art" aria-hidden="true">
       <svg viewBox="0 0 360 265" fill="none" className="wheel-scene">
-        <ellipse cx="181" cy="246" rx="128" ry="9" fill="#d4ddc8" />
+        <ellipse cx="181" cy="246" rx="128" ry="9" fill="#121719" />
         <path
           d="m142 176-20 68m92-68 21 68"
-          stroke="#7e9076"
+          stroke="#717e79"
           strokeWidth="8"
           strokeLinecap="round"
         />
@@ -203,39 +241,39 @@ export function WheelArt({
           cx="178"
           cy="122"
           r="105"
-          fill="#f4f6eb"
-          stroke="#788f70"
+          fill="#20272a"
+          stroke="#7f9990"
           strokeWidth="10"
         />
-        <circle cx="178" cy="122" r="94" stroke="#b4c4a6" strokeWidth="2" />
+        <circle cx="178" cy="122" r="94" stroke="#394a43" strokeWidth="2" />
         <g
           className={running ? "wheel-spokes rotating" : "wheel-spokes"}
-          stroke="#c7d2bb"
+          stroke="#3b4c45"
           strokeWidth="3"
         >
           <path d="M178 21v202M77 122h202m-172-71 142 142M107 193 249 51" />
         </g>
         <path
           d="M93 176q86 51 171-1"
-          stroke="#a6b79a"
+          stroke="#536c5d"
           strokeWidth="4"
           strokeLinecap="round"
         />
         <path
           d="M39 159c7-1 13 1 16 7-8 2-14 0-16-7Zm273 28c-10-2-17 2-18 9 11 1 17-2 18-9Z"
-          fill="#b6c7a3"
+          fill="#6e8a72"
         />
         <path
           d="M49 177v-14m253 47v-18"
-          stroke="#9caf87"
+          stroke="#536c5d"
           strokeWidth="2"
           strokeLinecap="round"
         />
-        <g stroke="#adbb9e" strokeWidth="2" strokeLinecap="round">
+        <g stroke="#758779" strokeWidth="2" strokeLinecap="round">
           <path d="M315 61v10m-5-5h10M40 91v8m-4-4h8" />
         </g>
-        <circle cx="299" cy="115" r="3" fill="#c2cba7" />
-        <circle cx="60" cy="37" r="3" fill="#c2cba7" />
+        <circle cx="299" cy="115" r="3" fill="#758779" />
+        <circle cx="60" cy="37" r="3" fill="#758779" />
       </svg>
       <Hamster mood={sleeping ? "sleep" : "run"} className="wheel-hamster" />
     </div>

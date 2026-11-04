@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-04",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "responses": [
+    {
+      "url": "https://api.squeekchain.com/v1/settlements?range=24h",
+      "status": 200
+    },
+    {
+      "url": "https://api.squeekchain.com/v1/status",
+      "status": 200
+    }
+  ],
+  "consoleOrScriptErrors": [],
+  "realTelegramDeliveryVerified": false
+}

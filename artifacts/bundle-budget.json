@@ -1,0 +1,28 @@
+{
+  "maximumSubmissionBytes": 8388608,
+  "explicitPathBudgetBytes": {
+    ".gitignore": 512,
+    "dist": 700000,
+    "artifacts": 1100000,
+    "src": 200000,
+    "tests": 100000,
+    "public": 200000,
+    "README.md": 20000,
+    "DESIGN.md": 20000,
+    "docs": 30000
+  },
+  "actualPathContentBytes": {
+    ".gitignore": 201,
+    "dist": 382647,
+    "artifacts": 323132,
+    "src": 96373,
+    "tests": 44407,
+    "public": 102381,
+    "README.md": 11171,
+    "DESIGN.md": 14295,
+    "docs": 13610
+  },
+  "actualTotalPathContentBytes": 988217,
+  "budgetTotalBytes": 2370512,
+  "withinEachBudget": true
+}

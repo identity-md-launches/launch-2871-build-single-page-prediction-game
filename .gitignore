@@ -1,0 +1,12 @@
+# Delivery path budgets are recorded in artifacts/validation.md.
+!dist/
+!dist/**
+!artifacts/
+!artifacts/**
+**/node_modules/
+**/.vite/
+**/.cache/
+**/.npm/
+**/.pnpm-store/
+test/scratch/
+.playwright-mcp/

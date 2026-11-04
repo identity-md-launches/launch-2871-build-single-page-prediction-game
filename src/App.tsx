@@ -1,1342 +1,858 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  BANDS,
-  isFeedFresh,
-  REFUND_GRACE_MS,
-  roundAt,
-  type Band,
-  type RoundResult,
-} from "./lib/api";
-import {
-  acceptDuel,
-  cancelDuel,
-  claimRelief,
-  createDuel,
-  ensurePlayer,
-  multiplierFor,
-  placePrediction,
-  settleLeague,
-  utcDay,
-  weeklyProfit,
-  type League,
-  type Prediction,
-} from "./lib/game";
-import { useClock, useFeed, useLeague } from "./lib/hooks";
-import { shortAddress } from "./lib/wallet";
 import { Hamster, Icon, WheelArt } from "./components/Art";
-import { Wallet } from "./components/Wallet";
-import { Modal } from "./components/Modal";
-
-const number = (v: number | undefined, decimals = 0) =>
-  v === undefined
-    ? "–"
+import { type Trigger } from "./lib/alerts";
+import {
+  credentialsError,
+  initialSettings,
+  readSettings,
+  STORAGE_KEY,
+  validTarget,
+  validToken,
+} from "./lib/settings";
+import { findTelegramChats, type TelegramChat } from "./lib/telegram";
+import { useLab } from "./lib/useLab";
+const format = (value: number | undefined, decimals = 0) =>
+  value === undefined
+    ? "—"
     : new Intl.NumberFormat("en-US", {
         maximumFractionDigits: decimals,
-      }).format(v);
-const time = (t: number) =>
-  new Date(t).toLocaleTimeString("en-GB", {
+      }).format(value);
+const localTime = (at: number) =>
+  new Date(at).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "UTC",
+    second: "2-digit",
   });
-const countdown = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-};
-const label = (band: Band) => BANDS.find((b) => b.id === band)!.name;
-
-function BandPicker({
-  value,
-  onChange,
-  disabledBand,
-}: {
-  value: Band | null;
-  onChange: (b: Band) => void;
-  disabledBand?: Band;
-}) {
-  return (
-    <fieldset className="band-fieldset">
-      <legend>How hard will the hamster work?</legend>
-      <div className="band-grid">
-        {BANDS.map((b) => (
-          <label
-            key={b.id}
-            className={`band-choice ${b.id} ${value === b.id ? "selected" : ""} ${disabledBand === b.id ? "unavailable" : ""}`}
-          >
-            <input
-              type="radio"
-              name="band"
-              value={b.id}
-              checked={value === b.id}
-              onChange={() => onChange(b.id)}
-              disabled={disabledBand === b.id}
-            />
-            <span className="selection-mark" aria-hidden="true">
-              {value === b.id && <Icon name="check" size={12} />}
-            </span>
-            <Hamster mood={b.id} />
-            <strong>{b.name}</strong>
-            <span className="band-range">
-              {b.range} <span>work</span>
-            </span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
+const TRIGGERS: {
+  id: Trigger;
+  title: string;
+  description: string;
+  icon: string;
+}[] = [
+  {
+    id: "wake",
+    title: "Hamster wake-up",
+    description: "The wheel goes from 0 RPM to moving.",
+    icon: "sun",
+  },
+  {
+    id: "sleep",
+    title: "Hamster sleep",
+    description: "Back to 0 RPM for at least 5 minutes.",
+    icon: "moon",
+  },
+  {
+    id: "round",
+    title: "New round settled",
+    description: "A new round is confirmed by Squeekchain.",
+    icon: "flag",
+  },
+  {
+    id: "threshold",
+    title: "RPM threshold crossing",
+    description: "Crosses your target, upward or downward.",
+    icon: "gauge",
+  },
+];
 export default function App() {
-  const clientNow = useClock();
-  const { feed, error: feedError, loading, refresh } = useFeed();
-  const { league, mutate, storageIssue } = useLeague();
-  const [playerId, setPlayerId] = useState("guest");
-  const [mode, setMode] = useState<"solo" | "duel">("solo");
-  const [band, setBand] = useState<Band | null>("run");
-  const [stake, setStake] = useState("100");
-  const [formError, setFormError] = useState("");
-  const [duelError, setDuelError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [help, setHelp] = useState(false);
-  const [relief, setRelief] = useState(false);
-  const [profile, setProfile] = useState(false);
-  const [profileName, setProfileName] = useState("");
-  const [tab, setTab] = useState<"history" | "leaderboard">("history");
-  const [filter, setFilter] = useState("all");
-  const [historyLimit, setHistoryLimit] = useState(6);
-  const [selectedPlayer, setSelectedPlayer] = useState("self");
-  const stakeRef = useRef<HTMLInputElement>(null);
-  const resultsRef = useRef(new Map<string, RoundResult>());
-  const [settledResults, setSettledResults] = useState<RoundResult[]>([]);
-  const now = clientNow + (feed?.serverOffset ?? 0);
-  const round = feed?.anchor ? roundAt(feed.anchor, now) : null;
-  const fresh = !feedError && isFeedFresh(feed, clientNow);
-  const player = league.players[playerId] ?? {
-    id: playerId,
-    name: playerId === "guest" ? "Seedling" : `Hamster ${playerId.slice(2, 6)}`,
-    balance: 1000,
-    streak: 0,
-    bestStreak: 0,
-  };
-  const ownPredictions = league.predictions.filter(
-    (p) => p.player === playerId,
-  );
-  const nextPrediction = ownPredictions.find(
-    (p) => p.round === round?.next && p.installation === feed?.installation,
-  );
-  const pendingCount = ownPredictions.filter(
-    (p) => p.outcome === "pending",
+  const [loaded] = useState(readSettings);
+  const [settings, setSettings] = useState(loaded.settings);
+  const [storageError, setStorageError] = useState(loaded.error);
+  const [target, setTarget] = useState(String(loaded.settings.rules.rpmTarget));
+  const [showToken, setShowToken] = useState(false);
+  const [formError, setFormError] = useState<{
+    field: string;
+    message: string;
+  } | null>(null);
+  const [forgetting, setForgetting] = useState(false);
+  const [findBusy, setFindBusy] = useState(false);
+  const [findNotice, setFindNotice] = useState("");
+  const [chats, setChats] = useState<TelegramChat[]>([]);
+  const [logFilter, setLogFilter] = useState("all");
+  const findEpoch = useRef(0);
+  const tokenRef = useRef<HTMLInputElement>(null),
+    chatRef = useRef<HTMLInputElement>(null),
+    targetRef = useRef<HTMLInputElement>(null);
+  const lab = useLab(settings);
+  const chosen = TRIGGERS.filter(
+    (trigger) => settings.rules[trigger.id],
   ).length;
-  const wins = ownPredictions.filter((p) => p.outcome === "won").length;
-  const losses = ownPredictions.filter((p) => p.outcome === "lost").length;
-  const multiplier = multiplierFor(player.streak);
-  const validStake =
-    /^\d+$/.test(stake) && Number(stake) >= 10 && Number(stake) <= 500;
-  const sleeping =
-    feed?.coreStatus === "IDLE" || feed?.coreStatus === "SLEEPING";
-  const wheelState = !feed
-    ? "Connecting"
-    : !fresh
-      ? "Feed paused"
-      : sleeping
-        ? "Sleeping"
-        : (feed.rpm ?? 0) > 0
-          ? "Running"
-          : feed.coreStatus === "UNKNOWN"
-            ? "Unknown"
-            : "Idle";
-  const reliefEligible =
-    player.balance < 300 && player.lastRelief !== utcDay(now);
-
-  const settlementTick = Math.floor(now / 5000);
-  useEffect(() => {
-    // Give the initial history request (including its failure/timeout) a chance
-    // to finish before making an irreversible missing-data refund on reload.
-    if (!feed && loading) return;
-    if (feed)
-      for (const result of feed.results)
-        resultsRef.current.set(`${feed.installation}:${result.round}`, result);
-    const results = [...resultsRef.current.entries()]
-      .filter(([key]) => key.startsWith(`${feed?.installation}:`))
-      .map(([, r]) => r)
-      .sort((a, b) => b.round - a.round)
-      .slice(0, 144);
-    setSettledResults(results);
-    void mutate((draft) => {
-      ensurePlayer(draft, playerId);
-      // Cache and settle in the same effect so the first feed cannot refund
-      // against the previous render's empty result list.
-      settleLeague(draft, results, now, feed?.installation);
-    }).catch((e) =>
-      setNotice(
-        e instanceof Error
-          ? e.message
-          : "League update failed. Reload to try again.",
-      ),
-    );
-    // Settle on each feed update and every five seconds, including while the API is down.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settlementTick, feed, loading, playerId, mutate]);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setFormError("");
-    setNotice("");
-    if (!band) {
-      setFormError("Choose a work band.");
-      return;
-    }
-    if (!/^\d+$/.test(stake) || Number(stake) < 10 || Number(stake) > 500) {
-      setFormError("Enter a whole stake from 10 to 500 SP.");
-      stakeRef.current?.focus();
-      return;
-    }
-    if (!fresh || !round || !feed) {
-      setFormError(
-        "Waiting for a fresh live feed. Try refreshing the wheel panel.",
-      );
-      return;
-    }
-    if (storageIssue) {
-      setFormError(storageIssue);
-      return;
-    }
-    if (mode === "duel" && playerId === "guest") {
-      setFormError("Connect and sign in with a wallet to create a duel.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await mutate((draft) => {
-        const input = {
-          player: playerId,
-          round: round.next,
-          installation: feed.installation,
-          start: round.nextStart,
-          end: round.nextEnd,
-          band,
-          stake: Number(stake),
-          now: Date.now() + feed.serverOffset,
-        };
-        if (mode === "solo") placePrediction(draft, input);
-        else createDuel(draft, input);
-      });
-      setNotice(
-        mode === "solo"
-          ? `${label(band)} prediction locked for round #${round.next}. Good luck, little forecaster.`
-          : "Duel created. Pass this browser to your friend and let them sign in with a different wallet.",
-      );
-    } catch (e) {
-      setFormError(
-        e instanceof Error
-          ? e.message
-          : "Prediction could not be saved. Try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function action(
-    fn: (draft: League) => void,
-    success: string,
-    onError?: (message: string) => void,
-  ) {
-    setBusy(true);
-    setNotice("");
-    try {
-      await mutate(fn);
-      setNotice(success);
-      return true;
-    } catch (e) {
-      const message =
-        e instanceof Error
-          ? e.message
-          : "This action could not be saved. Try again.";
-      setNotice(message);
-      onError?.(message);
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-  function navigate(nextTab: "history" | "leaderboard") {
-    setTab(nextTab);
-    if (nextTab === "history") {
-      setSelectedPlayer("self");
-      setFilter("all");
-    }
-    requestAnimationFrame(() =>
-      document
-        .getElementById("league")
-        ?.scrollIntoView({ behavior: "instant", block: "start" }),
-    );
-  }
-  function exportHistory() {
-    const rows = [
-      [
-        "Round",
-        "Mode",
-        "Band",
-        "Stake SP",
-        "Result",
-        "Payout SP",
-        "Net SP",
-        "Actual work",
-        "Reason",
-      ],
-      ...ownPredictions
-        .slice()
-        .reverse()
-        .map((p) => [
-          p.round,
-          p.duelId ? "Duel" : "Solo",
-          label(p.band),
-          p.stake,
-          p.outcome,
-          p.outcome === "pending" ? "" : p.payout,
-          p.outcome === "pending" ? "" : p.payout - p.stake,
-          p.work ?? "",
-          p.reason ?? "",
-        ]),
-    ];
-    const csv = rows
-      .map((row) =>
-        row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","),
-      )
-      .join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8;" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "squeek-streak-history.csv";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  const historyPlayer = selectedPlayer === "self" ? playerId : selectedPlayer;
-  const history = league.predictions
-    .filter(
-      (p) =>
-        p.player === historyPlayer &&
-        (filter === "all" || p.outcome === filter),
-    )
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt);
-  const ranked = Object.values(league.players)
-    .map((p) => ({ ...p, profit: weeklyProfit(league, p.id, now) }))
-    .sort((a, b) => b.profit - a.profit || a.name.localeCompare(b.name));
-  const openDuels = league.duels.filter(
-    (d) => d.status === "open" && d.start > now,
+  const statusFresh =
+    !!lab.status &&
+    !lab.statusError &&
+    lab.now - lab.status.receivedAt < 45_000 &&
+    lab.now - lab.status.observedAt <= lab.status.staleAfter;
+  const running = statusFresh && lab.status!.rpm > 0;
+  const historyFresh =
+    !!lab.history &&
+    !lab.historyError &&
+    lab.now - lab.history.generatedAt < 120_000;
+  const settledThrough = historyFresh
+    ? lab.history!.settlements.at(-1)?.through
+    : undefined;
+  const logItems = lab.logs.filter(
+    (entry) => logFilter === "all" || entry.delivery === logFilter,
   );
-  const recent = settledResults.slice(0, 7);
-
+  const sentCount = lab.logs.filter(
+    (entry) => entry.delivery === "sent",
+  ).length;
+  useEffect(() => {
+    try {
+      if (!settings.token && !settings.chatId)
+        localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      setStorageError("");
+    } catch {
+      setStorageError(
+        "Browser storage is unavailable. Settings stay in memory for this visit.",
+      );
+    }
+  }, [settings]);
+  function validate(includeRules: boolean) {
+    const error = credentialsError(settings);
+    if (error) {
+      setFormError(error);
+      (error.field === "token" ? tokenRef : chatRef).current?.focus();
+      return false;
+    }
+    if (includeRules && chosen === 0) {
+      setFormError({
+        field: "rules",
+        message: "Choose at least one alert below, then start watching.",
+      });
+      document.getElementById("trigger-wake")?.focus();
+      return false;
+    }
+    if (includeRules && settings.rules.threshold && !validTarget(target)) {
+      setFormError({
+        field: "target",
+        message: "Set an RPM target greater than 0 and no more than 1,000,000.",
+      });
+      targetRef.current?.focus();
+      return false;
+    }
+    setFormError(null);
+    return true;
+  }
+  function watch(event: FormEvent) {
+    event.preventDefault();
+    if (lab.active) lab.stop();
+    else if (validate(true)) void lab.start();
+  }
+  function forget() {
+    findEpoch.current++;
+    setFindBusy(false);
+    lab.stop();
+    setSettings(initialSettings());
+    setTarget("500");
+    setShowToken(false);
+    setForgetting(false);
+    setFormError(null);
+    setChats([]);
+    setFindNotice("");
+    tokenRef.current?.focus();
+  }
+  async function findChat() {
+    if (!validToken(settings.token)) {
+      setFormError({
+        field: "token",
+        message:
+          "Paste the full bot token from @BotFather, including the colon.",
+      });
+      tokenRef.current?.focus();
+      return;
+    }
+    const epoch = ++findEpoch.current;
+    setFindBusy(true);
+    setFindNotice("");
+    setChats([]);
+    try {
+      const found = await findTelegramChats(settings.token);
+      if (epoch !== findEpoch.current) return;
+      if (found.length === 1) {
+        setSettings((previous) => ({ ...previous, chatId: found[0].id }));
+        setFindNotice(`Chat ID found for ${found[0].label}.`);
+      } else if (found.length > 1) {
+        setChats(found);
+        setFindNotice("Choose the chat that should receive alerts.");
+      } else
+        setFindNotice(
+          "No recent chats found. Send /start to your bot in Telegram, then try again.",
+        );
+    } catch (error) {
+      if (epoch !== findEpoch.current) return;
+      setFindNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not find chats. Enter the chat ID manually.",
+      );
+    } finally {
+      if (epoch === findEpoch.current) setFindBusy(false);
+    }
+  }
   return (
     <>
-      <a className="skip-link" href="#play">
-        Skip to game
+      <a className="skip-link" href="#bot-setup">
+        Skip to bot setup
       </a>
       <header className="site-header">
         <div className="header-inner">
-          <a className="brand" href="#play" aria-label="Squeek Streak home">
+          <a className="brand" href="#">
             <span className="brand-mark">
               <Hamster />
             </span>
             <span>
-              Squeek<span className="brand-light"> Streak</span>
+              Squeek <span className="brand-light">Alert Lab</span>
             </span>
           </a>
-          <nav aria-label="Main navigation">
-            <a href="#play" className="nav-play">
-              Play
+          <nav aria-label="Main">
+            <a className="quiet-link help-link" href="#how-it-works">
+              How it works
             </a>
-            <button onClick={() => navigate("history")}>My history</button>
-            <button onClick={() => navigate("leaderboard")}>Leaderboard</button>
-          </nav>
-          <div className="header-utilities">
-            <button
-              className="icon-button help-button"
-              aria-label="How to play"
-              onClick={() => setHelp(true)}
+            <a
+              className="chain-link"
+              href="https://squeekchain.com"
+              target="_blank"
+              rel="noreferrer"
             >
-              <Icon name="help" />
-            </button>
-            <Wallet
-              onLogin={setPlayerId}
-              onLogout={() => setPlayerId("guest")}
-            />
-          </div>
+              Squeekchain
+              <Icon name="external" size={14} />
+            </a>
+          </nav>
         </div>
       </header>
-
       <main className="page-container">
-        <section className="page-intro">
+        <div className="intro">
           <div>
-            <h1>Little wheel. Big predictions.</h1>
-            <p>Predict the next 10 minutes of Squeekchain.</p>
+            <h1>Your bot. Your alerts.</h1>
+            <p>Bring your own Telegram bot to the Squeekchain hamster wheel.</p>
           </div>
-          <button
-            className="text-button intro-help"
-            onClick={() => setHelp(true)}
-          >
-            How to play <Icon name="help" size={17} />
-          </button>
-        </section>
-
-        <section className="account-strip" aria-label="Your game stats">
-          <button
-            className="account-name"
-            onClick={() => {
-              setProfileName(player.name);
-              setProfile(true);
-            }}
-          >
-            <span className="avatar">
-              <Hamster />
-            </span>
-            <span>
-              <strong>{player.name}</strong>
-              <span className="account-mode">
-                {playerId === "guest" ? "Guest practice" : "Wallet player"}{" "}
-                <Icon name="chevron" size={12} />
-              </span>
-            </span>
-          </button>
-          <div className="balance-stat">
-            <span className="stat-label">Balance</span>
-            <strong>
-              <Icon name="seed" size={17} />
-              {number(player.balance)} <span>SP</span>
-            </strong>
-          </div>
-          <div className="strip-stat">
-            <span className="stat-label">Current streak</span>
-            <strong>
-              <Icon name="bolt" size={17} />
-              {player.streak}{" "}
-              <span>{player.streak === 1 ? "win" : "wins"}</span>
-            </strong>
-          </div>
-          <div className="strip-stat best-streak">
-            <span className="stat-label">Best streak</span>
-            <strong>
-              <Icon name="trophy" size={17} />
-              {player.bestStreak}{" "}
-              <span>{player.bestStreak === 1 ? "win" : "wins"}</span>
-            </strong>
-          </div>
-          <button
-            className={`relief-button ${reliefEligible ? "eligible" : ""}`}
-            aria-label="Daily relief"
-            onClick={() => setRelief(true)}
-          >
-            <Icon name="seed" size={17} />
-            <span>Daily relief</span>
-            <Icon name="chevron" size={14} />
-          </button>
-        </section>
-
-        {storageIssue && (
-          <div className="error-banner" role="alert">
-            {storageIssue}
-          </div>
-        )}
-
-        <div className="game-grid" id="play">
-          <section className="live-panel" aria-labelledby="wheel-title">
-            <div className="section-heading">
-              <h2 id="wheel-title">The hamster, right now</h2>
-              <span className={`live-label ${fresh ? "" : "paused"}`}>
-                <span className="status-dot" />
-                {fresh ? "Live" : loading ? "Connecting" : "Paused"}
-              </span>
-            </div>
-            <WheelArt
-              sleeping={sleeping}
-              running={fresh && !sleeping && (feed?.rpm ?? 0) > 0}
-            />
-            <div className="wheel-caption">
-              <span className={`state-badge ${sleeping ? "sleeping" : ""}`}>
-                <span className="status-dot" />
-                {wheelState}
-              </span>
-              <p>
-                {!feed
-                  ? "Listening for little footsteps…"
-                  : !fresh
-                    ? "Waiting for fresh wheel data."
-                    : sleeping
-                      ? "Even little legs need a break."
-                      : "Every little step adds up."}
+          <span className="browser-label">
+            <Icon name="lock" size={16} />
+            No backend. No account.
+          </span>
+        </div>
+        <div className="workspace">
+          <div className="configure-column">
+            <section
+              className="panel setup-panel"
+              id="bot-setup"
+              aria-labelledby="setup-title"
+            >
+              <div className="panel-heading">
+                <h2 id="setup-title">
+                  <span className="step">1</span>Bring your own bot
+                </h2>
+                <span
+                  className={`status-label ${lab.active ? "positive" : ""}`}
+                >
+                  <span className="status-dot" />
+                  {lab.active ? "Watching" : "Not watching"}
+                </span>
+              </div>
+              <form onSubmit={watch} noValidate>
+                <div className="setup-fields">
+                  <div className="field">
+                    <label htmlFor="bot-token">Telegram bot token</label>
+                    <div className="token-field">
+                      <input
+                        ref={tokenRef}
+                        id="bot-token"
+                        name="bot-token"
+                        type={showToken ? "text" : "password"}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="Paste your token from @BotFather"
+                        value={settings.token}
+                        disabled={lab.active || findBusy || lab.testPending}
+                        aria-invalid={formError?.field === "token"}
+                        aria-describedby={
+                          formError?.field === "token"
+                            ? "setup-error"
+                            : "token-hint"
+                        }
+                        onChange={(event) => {
+                          setSettings((previous) => ({
+                            ...previous,
+                            token: event.target.value.trim(),
+                          }));
+                          setChats([]);
+                          setFindNotice("");
+                          setFormError(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="reveal-token"
+                        aria-label={
+                          showToken ? "Hide bot token" : "Show bot token"
+                        }
+                        aria-pressed={showToken}
+                        onClick={() => setShowToken((value) => !value)}
+                      >
+                        <Icon name="eye" size={18} />
+                      </button>
+                    </div>
+                    <span className="field-hint" id="token-hint">
+                      Create a bot with{" "}
+                      <a
+                        href="https://t.me/BotFather"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        @BotFather
+                        <Icon name="external" size={12} />
+                      </a>
+                      .
+                    </span>
+                  </div>
+                  <div className="field">
+                    <div className="field-label-row">
+                      <label htmlFor="chat-id">Chat ID</label>
+                      <button
+                        type="button"
+                        className="inline-action"
+                        onClick={() => void findChat()}
+                        disabled={lab.active || findBusy || lab.testPending}
+                      >
+                        {findBusy ? "Finding…" : "Find chat ID"}
+                      </button>
+                    </div>
+                    <input
+                      ref={chatRef}
+                      id="chat-id"
+                      name="chat-id"
+                      type="text"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="e.g. 123456789"
+                      value={settings.chatId}
+                      disabled={lab.active || findBusy || lab.testPending}
+                      aria-invalid={formError?.field === "chatId"}
+                      aria-describedby={
+                        formError?.field === "chatId"
+                          ? "setup-error"
+                          : "chat-hint"
+                      }
+                      onChange={(event) => {
+                        setSettings((previous) => ({
+                          ...previous,
+                          chatId: event.target.value.trim(),
+                        }));
+                        setFormError(null);
+                      }}
+                    />
+                    <span className="field-hint" id="chat-hint">
+                      Send /start to your bot first.
+                    </span>
+                  </div>
+                </div>
+                <div className="chat-discovery" role="status">
+                  {findNotice}
+                  {chats.length > 0 && (
+                    <div className="chat-options">
+                      {chats.map((chat) => (
+                        <button
+                          className="button secondary"
+                          type="button"
+                          key={chat.id}
+                          onClick={() => {
+                            setSettings((previous) => ({
+                              ...previous,
+                              chatId: chat.id,
+                            }));
+                            setChats([]);
+                            setFindNotice(
+                              `Chat ID selected for ${chat.label}.`,
+                            );
+                          }}
+                        >
+                          {chat.label} · {chat.id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="form-error" id="setup-error" role="alert">
+                  {formError && !["target", "rules"].includes(formError.field)
+                    ? formError.message
+                    : ""}
+                </div>
+                <div className="setup-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={lab.testPending || findBusy}
+                    onClick={() => {
+                      if (validate(false)) void lab.test(settings);
+                    }}
+                  >
+                    <Icon name="telegram" size={18} />
+                    {lab.testPending ? "Sending test…" : "Send test alert"}
+                  </button>
+                  <button
+                    type="submit"
+                    className="button primary"
+                    disabled={findBusy}
+                  >
+                    <Icon name={lab.active ? "pause" : "play"} size={16} />
+                    {lab.active ? "Stop watching" : "Start watching"}
+                  </button>
+                </div>
+                <p className="field-hint open-reminder">
+                  Alerts only fire while this page is open.
+                </p>
+                <div className="action-notice" role="status">
+                  {lab.testNotice || lab.watchNotice}
+                </div>
+                {lab.active && (
+                  <p className="field-hint edit-hint">
+                    Stop watching to edit your bot or chat. Alert toggles stay
+                    adjustable.
+                  </p>
+                )}
+              </form>
+              <div className="privacy-line">
+                <Icon name="shield" size={18} />
+                <p>
+                  Your bot token is stored only in this browser.
+                  <span>
+                    It goes directly to Telegram when sending. No app server.
+                  </span>
+                </p>
+              </div>
+              {storageError && (
+                <p className="error-text" role="alert">
+                  {storageError}
+                </p>
+              )}
+              {(settings.token || settings.chatId) && (
+                <div className="forget-row">
+                  {forgetting ? (
+                    <>
+                      <span>Remove saved bot details?</span>
+                      <button
+                        type="button"
+                        className="text-button danger"
+                        onClick={forget}
+                      >
+                        Forget bot
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => setForgetting(false)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => setForgetting(true)}
+                    >
+                      Forget saved bot
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+            <section
+              className="panel triggers-panel"
+              aria-labelledby="triggers-title"
+            >
+              <div className="panel-heading">
+                <h2 id="triggers-title">
+                  <span className="step">2</span>Pick your squeeks
+                </h2>
+                <span className="count-label">{chosen} of 4 on</span>
+              </div>
+              <p className="section-description">
+                Only the moments you care about.
               </p>
-            </div>
-            <dl className="wheel-metrics">
-              <div>
-                <dt>Wheel RPM</dt>
-                <dd>{number(feed?.rpm, 2)}</dd>
+              <div className="trigger-list">
+                {TRIGGERS.map((trigger) => (
+                  <div
+                    className={`trigger-item ${settings.rules[trigger.id] ? "enabled" : ""}`}
+                    key={trigger.id}
+                  >
+                    <label
+                      className="trigger-label"
+                      htmlFor={`trigger-${trigger.id}`}
+                    >
+                      <span className={`trigger-icon ${trigger.id}`}>
+                        <Icon name={trigger.icon} size={21} />
+                      </span>
+                      <span className="trigger-copy">
+                        <strong>{trigger.title}</strong>
+                        <span>{trigger.description}</span>
+                      </span>
+                      <input
+                        id={`trigger-${trigger.id}`}
+                        className="switch-input"
+                        type="checkbox"
+                        role="switch"
+                        checked={settings.rules[trigger.id]}
+                        onChange={(event) => {
+                          setSettings((previous) => ({
+                            ...previous,
+                            rules: {
+                              ...previous.rules,
+                              [trigger.id]: event.target.checked,
+                            },
+                          }));
+                          if (formError?.field === "rules") setFormError(null);
+                        }}
+                      />
+                      <span className="switch-track" aria-hidden="true">
+                        <span />
+                      </span>
+                    </label>
+                    {trigger.id === "threshold" && (
+                      <div className="target-row">
+                        <label htmlFor="rpm-target">Your target</label>
+                        <div className="target-field">
+                          <input
+                            ref={targetRef}
+                            id="rpm-target"
+                            name="rpm-target"
+                            type="number"
+                            inputMode="decimal"
+                            min="0.001"
+                            max="1000000"
+                            step="any"
+                            value={target}
+                            disabled={!settings.rules.threshold}
+                            aria-invalid={
+                              settings.rules.threshold && !validTarget(target)
+                            }
+                            aria-describedby="target-error"
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setTarget(value);
+                              if (validTarget(value))
+                                setSettings((previous) => ({
+                                  ...previous,
+                                  rules: {
+                                    ...previous.rules,
+                                    rpmTarget: Number(value),
+                                  },
+                                }));
+                            }}
+                          />
+                          <span>RPM</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div>
-                <dt>
-                  Speed <span>(mm/s)</span>
-                </dt>
-                <dd>{number(feed?.speed)}</dd>
+              <div className="error-text" id="target-error" role="status">
+                {settings.rules.threshold && !validTarget(target)
+                  ? "Enter a target greater than 0 and no more than 1,000,000 RPM. The last valid target stays active."
+                  : formError?.field === "rules"
+                    ? formError.message
+                    : ""}
               </div>
-              <div>
-                <dt>Round work</dt>
-                <dd>{number(feed?.openWork)}</dd>
+            </section>
+          </div>
+          <aside
+            className="observe-column"
+            aria-label="Live Squeekchain status"
+          >
+            <section className="panel live-panel" aria-labelledby="live-title">
+              <div className="panel-heading">
+                <h2 id="live-title">Inside the wheel</h2>
+                <span
+                  className={`status-label ${statusFresh ? "positive" : ""}`}
+                >
+                  <span className="status-dot" />
+                  {statusFresh
+                    ? "Live feed"
+                    : lab.statusError
+                      ? "Feed unavailable"
+                      : lab.status
+                        ? "Stale feed"
+                        : "Connecting"}
+                </span>
               </div>
-            </dl>
-            <div className="live-foot">
-              <span>
-                Round <strong>{round ? `#${round.current}` : "–"}</strong>
-              </span>
-              <span>
-                <strong>{number(feed?.settledThrough)}</strong> rounds settled
-              </span>
-            </div>
-            <p className="total-work">
-              Total wheel work <strong>{number(feed?.cumulativeWork)}</strong>
-            </p>
-            <div className="feed-source">
+              <div className="wheel-display">
+                <WheelArt sleeping={!running} running={running} />
+                <div className="wheel-state">
+                  <strong>
+                    {statusFresh
+                      ? running
+                        ? "Up and running"
+                        : "Taking a snooze"
+                      : lab.statusError || lab.status
+                        ? "Waiting for fresh data"
+                        : "Meeting the hamster…"}
+                  </strong>
+                  <span>
+                    {statusFresh
+                      ? running
+                        ? "Tiny paws. Actual work."
+                        : "Even little legs need a break."
+                      : "No guesses. Just the official feed."}
+                  </span>
+                </div>
+              </div>
+              <dl className="metrics">
+                <div>
+                  <dt>Wheel speed</dt>
+                  <dd>
+                    {format(statusFresh ? lab.status?.rpm : undefined, 3)}
+                    <span>RPM</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current round work</dt>
+                  <dd>
+                    {format(statusFresh ? lab.status?.openWork : undefined)}
+                    <span>units</span>
+                  </dd>
+                </div>
+              </dl>
+              <div className="round-line">
+                <span>Latest settled round</span>
+                <strong>
+                  {settledThrough === undefined
+                    ? "Awaiting history"
+                    : `#${format(settledThrough)}`}
+                </strong>
+              </div>
+              <div className="poll-line">
+                <span>
+                  <Icon name="refresh" size={14} />
+                  {lab.polling
+                    ? "Checking the wheel…"
+                    : `Next poll in ${Math.max(0, Math.ceil((lab.nextPoll - lab.now) / 1000))}s`}
+                </span>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Refresh live status"
+                  disabled={lab.polling}
+                  onClick={() => void lab.refresh()}
+                >
+                  <Icon name="refresh" size={16} />
+                </button>
+              </div>
+              <div className="feed-errors" role="status">
+                {lab.statusError && <p>{lab.statusError}</p>}
+                {lab.historyError && <p>{lab.historyError}</p>}
+              </div>
               <a
+                className="source-link"
                 href="https://api.squeekchain.com/v1/status"
                 target="_blank"
                 rel="noreferrer"
               >
-                Official Squeekchain feed <Icon name="external" size={12} />
+                Official Squeekchain API
+                <Icon name="external" size={12} />
               </a>
-              <button
-                aria-label="Refresh live feed"
-                className="icon-button refresh-button"
-                disabled={loading}
-                onClick={() => void refresh()}
-              >
-                <Icon name="refresh" size={14} />
-              </button>
-            </div>
-            {(feedError || (feed && !feed.historyAvailable)) && (
-              <div className="feed-error" role="status">
-                {feedError ||
-                  "Settlement history is unavailable. Predictions pause until round timing returns."}
-                <button
-                  className="text-button"
-                  disabled={loading}
-                  onClick={() => void refresh()}
-                >
-                  Retry feed
-                </button>
-              </div>
-            )}
-          </section>
-
-          <section className="play-panel" aria-labelledby="prediction-title">
-            <div className="mode-tabs" aria-label="Game mode">
-              <button
-                className={mode === "solo" ? "active" : ""}
-                aria-pressed={mode === "solo"}
-                onClick={() => {
-                  setMode("solo");
-                  setFormError("");
-                }}
-              >
-                <Icon name="bolt" size={17} />
-                Streak prediction
-              </button>
-              <button
-                className={mode === "duel" ? "active" : ""}
-                aria-pressed={mode === "duel"}
-                onClick={() => {
-                  setMode("duel");
-                  setFormError("");
-                }}
-              >
-                <Icon name="duel" size={17} />
-                1v1 duel
-                {openDuels.length > 0 && (
-                  <span className="duel-count">{openDuels.length}</span>
-                )}
-              </button>
-            </div>
-            <div className="prediction-heading">
+            </section>
+            <div className="open-note">
+              <span className="note-icon">
+                <Icon name="help" size={20} />
+              </span>
               <div>
-                <h2 id="prediction-title">
-                  {mode === "solo"
-                    ? "What’s your next move?"
-                    : "Two players. One little wheel."}
-                </h2>
+                <h3>Keep this little lab open</h3>
                 <p>
-                  {round
-                    ? `Predict round #${round.next} · ${time(round.nextStart)}–${time(round.nextEnd)} UTC`
-                    : "Next round · waiting for official timing"}
+                  Alerts only fire while this page is open. Browsers may slow
+                  polling in background tabs or suspend it when your device
+                  sleeps.
                 </p>
-              </div>
-              <div className="round-timer">
-                <span>Locks in</span>
-                <strong>
-                  {round ? countdown(round.nextStart - now) : "--:--"}
-                </strong>
+                <span>Live polling every 15 seconds.</span>
               </div>
             </div>
-            <form onSubmit={(e) => void submit(e)} noValidate>
-              <BandPicker
-                value={band}
-                onChange={(b) => {
-                  setBand(b);
-                  setFormError("");
-                  setDuelError("");
-                }}
-              />
-              <div className="stake-heading">
-                <label htmlFor="stake">Your stake</label>
-                <span>10–500 SP</span>
-              </div>
-              <div className="stake-controls">
-                <div className="stake-input-wrap">
-                  <Icon name="seed" size={18} />
-                  <input
-                    ref={stakeRef}
-                    id="stake"
-                    name="stake"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    value={stake}
-                    onChange={(e) => {
-                      setStake(e.target.value);
-                      setFormError("");
-                    }}
-                    aria-invalid={
-                      !!formError &&
-                      (!validStake || Number(stake) > player.balance)
-                    }
-                    aria-describedby="prediction-error stake-hint"
-                  />
-                  <span>SP</span>
-                </div>
-                <div className="stake-presets">
-                  {[50, 100, 250].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      aria-pressed={stake === String(n)}
-                      className={stake === String(n) ? "selected" : ""}
-                      onClick={() => {
-                        setStake(String(n));
-                        setFormError("");
-                      }}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="payout-line" id="stake-hint">
-                <span>
-                  {mode === "solo" ? (
-                    <>
-                      If correct{" "}
-                      <strong className="multiplier-tag">
-                        {multiplier.toFixed(2).replace(/0$/, "")}×
-                      </strong>
-                    </>
-                  ) : (
-                    "Winner takes the pot"
-                  )}
-                </span>
-                <strong>
-                  {number(
-                    validStake
-                      ? Math.floor(
-                          Number(stake) * (mode === "solo" ? multiplier : 2),
-                        )
-                      : 0,
-                  )}{" "}
-                  SP <span>return</span>
-                </strong>
-              </div>
-              <button
-                className="button primary predict-button"
-                type="submit"
-                disabled={busy || !!nextPrediction || !fresh || !!storageIssue}
+          </aside>
+        </div>
+        <section className="panel log-panel" aria-labelledby="log-title">
+          <div className="panel-heading log-heading">
+            <h2 id="log-title">
+              <Icon name="history" size={21} />
+              Alert log<span className="log-count">{sentCount} sent</span>
+            </h2>
+            <div className="log-controls">
+              <label className="sr-only" htmlFor="log-filter">
+                Filter alert log
+              </label>
+              <select
+                id="log-filter"
+                value={logFilter}
+                onChange={(event) => setLogFilter(event.target.value)}
               >
-                {nextPrediction ? (
-                  <>
-                    <Icon name="check" size={19} />
-                    {nextPrediction.duelId
-                      ? "Duel stake locked"
-                      : `${label(nextPrediction.band)} prediction locked`}
-                  </>
-                ) : busy ? (
-                  "Saving prediction…"
-                ) : mode === "solo" ? (
-                  <>
-                    Lock prediction
-                    <Icon name="arrow" size={18} />
-                  </>
-                ) : (
-                  <>
-                    Create a duel
-                    <Icon name="duel" size={18} />
-                  </>
+                <option value="all">All alerts</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+              </select>
+              <button
+                type="button"
+                className="text-button"
+                onClick={lab.clearLog}
+                disabled={lab.logs.every(
+                  (entry) => entry.delivery === "sending",
                 )}
+              >
+                Clear log
               </button>
-              <div id="prediction-error" className="form-error" role="status">
-                {formError}
-              </div>
-              <p className="play-footnote">
-                {nextPrediction
-                  ? `${nextPrediction.stake} SP staked for round #${nextPrediction.round}. Results arrive after the round settles.`
-                  : !fresh
-                    ? loading
-                      ? "Connecting to Squeekchain. Picks open when the feed is ready."
-                      : "Picks paused. Refresh the live feed to try again."
-                    : mode === "solo"
-                      ? "Free points. Real hamster work. No gas."
-                      : "Two wallets in this browser. Same round, different bands."}
+            </div>
+          </div>
+          {logItems.length === 0 ? (
+            <div className="empty-log">
+              <span className="empty-bell">
+                <Icon name="bell" size={28} />
+              </span>
+              <strong>
+                {lab.logs.length
+                  ? "No alerts match this filter"
+                  : "A quiet wheel, for now."}
+              </strong>
+              <p>
+                {lab.logs.length
+                  ? "Choose All alerts to see the rest of your log."
+                  : "Send a test alert or start watching. Your alerts will land here."}
               </p>
-            </form>
-            {mode === "duel" && (
-              <div className="duel-lobby">
-                <div className="duel-lobby-heading">
-                  <h3>Open duels</h3>
-                  <span>This browser only</span>
-                </div>
-                <p className="muted duel-instructions">
-                  Pass this device to a friend. They sign in with another
-                  wallet, choose a different band, and match your stake.
-                </p>
-                <p className="form-error" role="status">
-                  {duelError}
-                </p>
-                {openDuels.length === 0 ? (
-                  <p className="empty-duels">
-                    No open duels yet. Create the first challenge above.
-                  </p>
-                ) : (
-                  openDuels.map((d) => (
-                    <div className="duel-row" key={d.id}>
-                      <div>
-                        <strong>
-                          {league.players[d.host]?.name} picked {label(d.band)}
-                        </strong>
-                        <span>
-                          #{d.round} · {d.stake} SP each · {d.stake * 2} SP pot
-                        </span>
-                      </div>
-                      {d.host === playerId ? (
-                        <button
-                          className="small-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void action(
-                              (draft) => cancelDuel(draft, d.id, playerId, now),
-                              "Duel cancelled. Your stake was returned.",
-                            )
-                          }
-                        >
-                          Cancel duel
-                        </button>
-                      ) : (
-                        <button
-                          className="small-button"
-                          disabled={busy || !fresh}
-                          onClick={() => {
-                            if (!band || band === d.band) {
-                              setDuelError(
-                                "Choose a different band from your opponent above.",
-                              );
-                              return;
-                            }
-                            setDuelError("");
-                            void action(
-                              (draft) =>
-                                acceptDuel(
-                                  draft,
-                                  d.id,
-                                  playerId,
-                                  band,
-                                  Date.now() + (feed?.serverOffset ?? 0),
-                                ),
-                              `Duel accepted. Your ${label(band)} pick is locked for round #${d.round}.`,
-                              setDuelError,
-                            );
-                          }}
-                        >
-                          Join with {band ? label(band) : "a pick"}
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="notice" role="status">
-          {notice && (
-            <>
-              <Icon name="seed" size={18} />
-              <span>{notice}</span>
-              <button
-                className="icon-button"
-                aria-label="Dismiss notification"
-                onClick={() => setNotice("")}
-              >
-                <Icon name="close" size={16} />
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="insights-grid">
-          <section className="recent-section" aria-labelledby="recent-title">
-            <div className="section-heading">
-              <h2 id="recent-title">Recent rounds</h2>
-              <span className="muted">Confirmed work</span>
             </div>
-            {recent.length ? (
-              <>
-                <div className="recent-rounds">
-                  {recent.map((r) => (
-                    <div className={`recent-round ${r.band}`} key={r.round}>
-                      <span className="recent-round-id">#{r.round}</span>
-                      <span className={`round-band ${r.band}`}>
-                        {label(r.band)}
-                      </span>
-                      <strong>{number(r.work)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="recent-caption">
-                  <span>Work units per settled round</span>
-                  <a
-                    href="https://api.squeekchain.com/v1/settlements?range=24h"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View source <Icon name="external" size={12} />
-                  </a>
-                </div>
-              </>
-            ) : (
-              <div className="empty-rounds">
-                <Icon name="history" size={24} />
-                <p>
-                  {loading
-                    ? "Loading official settlements…"
-                    : "No confirmed per-round data is available. New results appear here when the API confirms them."}
-                </p>
-              </div>
-            )}
-          </section>
-          <section className="streak-section" aria-labelledby="streak-title">
-            <div className="section-heading">
-              <h2 id="streak-title">
-                <Icon name="bolt" size={19} />
-                Keep the streak squeeking
-              </h2>
-              <span className="muted">Up to 3×</span>
-            </div>
-            <p>Keep picking correctly. Your next win gets a bigger return.</p>
-            <ol className="streak-steps">
-              {[2, 2.25, 2.5, 2.75, 3].map((m, i) => (
-                <li
-                  className={
-                    Math.min(player.streak, 4) === i
-                      ? "current"
-                      : player.streak > i
-                        ? "complete"
-                        : ""
-                  }
-                  key={m}
-                >
-                  <span>
-                    {i === 4 ? (
-                      <Icon name="trophy" size={18} />
-                    ) : (
-                      <Icon name="seed" size={17} />
-                    )}
+          ) : (
+            <ol className="alert-list">
+              {logItems.map((entry) => (
+                <li key={entry.id} className="alert-row">
+                  <span className={`log-icon ${entry.delivery}`}>
+                    <Icon
+                      name={
+                        entry.delivery === "sent"
+                          ? "check"
+                          : entry.delivery === "failed"
+                            ? "help"
+                            : "telegram"
+                      }
+                      size={18}
+                    />
                   </span>
-                  <strong>{m}×</strong>
-                  <small>{i === 4 ? "5+ wins" : `Win ${i + 1}`}</small>
+                  <div className="alert-content">
+                    <div className="alert-title">
+                      <strong>{entry.title}</strong>
+                      <span className={`delivery ${entry.delivery}`}>
+                        {entry.delivery === "sent"
+                          ? "Sent to Telegram"
+                          : entry.delivery === "failed"
+                            ? "Failed"
+                            : "Sending…"}
+                      </span>
+                    </div>
+                    {entry.error && <p className="error-text">{entry.error}</p>}
+                    <details>
+                      <summary>View message</summary>
+                      <p className="message-preview">{entry.message}</p>
+                    </details>
+                  </div>
+                  <div className="alert-meta">
+                    <time
+                      dateTime={new Date(entry.at).toISOString()}
+                      title={new Date(entry.at).toLocaleString("en-GB")}
+                    >
+                      {localTime(entry.at)}
+                    </time>
+                    {entry.delivery === "failed" && (
+                      <button
+                        className="text-button"
+                        disabled={
+                          (!!entry.retryAt && lab.now < entry.retryAt) ||
+                          !!credentialsError(settings)
+                        }
+                        onClick={() => void lab.retry(entry)}
+                      >
+                        {entry.retryAt && lab.now < entry.retryAt
+                          ? `Retry in ${Math.ceil((entry.retryAt - lab.now) / 1000)}s`
+                          : "Retry alert"}
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ol>
-            <span className="streak-note">
-              A miss resets your streak. A refund keeps it safe.
-            </span>
-          </section>
-        </div>
-
-        <section
-          className="league-section"
-          id="league"
-          aria-label="Player activity"
-        >
-          <div className="league-heading">
-            <div className="activity-tabs" aria-label="Activity view">
-              <button
-                className={tab === "history" ? "active" : ""}
-                aria-pressed={tab === "history"}
-                onClick={() => setTab("history")}
-              >
-                <Icon name="history" size={19} />
-                Prediction history
-                {pendingCount > 0 && (
-                  <span className="pending-count">{pendingCount}</span>
-                )}
-              </button>
-              <button
-                className={tab === "leaderboard" ? "active" : ""}
-                aria-pressed={tab === "leaderboard"}
-                onClick={() => setTab("leaderboard")}
-              >
-                <Icon name="trophy" size={19} />
-                Weekly leaderboard
-              </button>
-            </div>
-            <span className="local-league">
-              <span className="status-dot" />
-              Local league
-            </span>
-          </div>
-          <div className="league-context">
-            <p>
-              {tab === "history"
-                ? "Every pick, every little victory."
-                : "Ranked by settled net profit since Monday, 00:00 UTC."}
-            </p>
-            <span>Saved in this browser. No shared global scores.</span>
-          </div>
-          {tab === "history" ? (
-            <>
-              <div className="history-toolbar">
-                <div className="history-filters">
-                  <label className="select-label">
-                    Player
-                    <select
-                      aria-label="History player"
-                      value={selectedPlayer}
-                      onChange={(e) => {
-                        setSelectedPlayer(e.target.value);
-                        setHistoryLimit(6);
-                      }}
-                    >
-                      <option value="self">{player.name} (you)</option>
-                      {Object.values(league.players)
-                        .filter((p) => p.id !== playerId)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                            {p.id !== "guest"
-                              ? ` · ${shortAddress(p.id)}`
-                              : " · guest"}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="select-label">
-                    Result
-                    <select
-                      aria-label="Filter history by result"
-                      value={filter}
-                      onChange={(e) => {
-                        setFilter(e.target.value);
-                        setHistoryLimit(6);
-                      }}
-                    >
-                      <option value="all">All results</option>
-                      <option value="pending">Pending</option>
-                      <option value="won">Won</option>
-                      <option value="lost">Lost</option>
-                      <option value="refunded">Refunded</option>
-                    </select>
-                  </label>
-                </div>
-                <button
-                  className="text-button export-button"
-                  onClick={exportHistory}
-                >
-                  <Icon name="download" size={16} />
-                  Export my CSV
-                </button>
-              </div>
-              {history.length ? (
-                <>
-                  <div
-                    className="history-table"
-                    role="table"
-                    aria-label="Prediction history"
-                  >
-                    <div className="history-table-head" role="row">
-                      <span role="columnheader">Round / pick</span>
-                      <span role="columnheader">Stake</span>
-                      <span role="columnheader">Result</span>
-                      <span role="columnheader">Net return</span>
-                    </div>
-                    {history.slice(0, historyLimit).map((p) => (
-                      <HistoryRow key={p.id} p={p} now={now} />
-                    ))}
-                  </div>
-                  {history.length > historyLimit && (
-                    <button
-                      className="button secondary load-more"
-                      onClick={() => setHistoryLimit((n) => n + 12)}
-                    >
-                      Show more predictions
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="history-empty">
-                  <span className="empty-icon">
-                    <Icon name="seed" size={25} />
-                  </span>
-                  <div>
-                    <h3>
-                      {filter !== "all"
-                        ? `No ${filter} predictions yet`
-                        : "Your first streak starts with one pick."}
-                    </h3>
-                    <p>
-                      {filter !== "all"
-                        ? "Choose all results to see your other picks."
-                        : "Choose a band above and put your hamster instinct to the test."}
-                    </p>
-                  </div>
-                  <button
-                    className="small-button"
-                    onClick={() => {
-                      if (filter !== "all") setFilter("all");
-                      else
-                        document
-                          .getElementById("prediction-title")
-                          ?.scrollIntoView({
-                            behavior: "instant",
-                            block: "start",
-                          });
-                    }}
-                  >
-                    {filter !== "all"
-                      ? "Show all results"
-                      : "Make a prediction"}
-                    <Icon name="arrow" size={16} />
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div
-              className="leaderboard-table"
-              role="table"
-              aria-label="Local weekly leaderboard"
-            >
-              <div className="leaderboard-head" role="row">
-                <span role="columnheader">Rank</span>
-                <span role="columnheader">Player</span>
-                <span role="columnheader">Best streak</span>
-                <span role="columnheader">Weekly profit</span>
-              </div>
-              {ranked.map((p, i) => (
-                <div
-                  className={`leaderboard-row ${p.id === playerId ? "you" : ""}`}
-                  role="row"
-                  key={p.id}
-                >
-                  <span role="cell" className="rank">
-                    {i + 1}
-                  </span>
-                  <span role="cell" className="leaderboard-player">
-                    <span className="avatar small">
-                      <Hamster />
-                    </span>
-                    <button
-                      className="player-history-button"
-                      onClick={() => {
-                        setSelectedPlayer(p.id === playerId ? "self" : p.id);
-                        setFilter("all");
-                        setTab("history");
-                      }}
-                    >
-                      {p.name}
-                      {p.id === playerId && (
-                        <span className="you-label">You</span>
-                      )}
-                      <small>
-                        {p.id === "guest"
-                          ? "Guest practice"
-                          : shortAddress(p.id)}
-                      </small>
-                    </button>
-                  </span>
-                  <span role="cell">{p.bestStreak} wins</span>
-                  <strong
-                    role="cell"
-                    className={
-                      p.profit > 0 ? "positive" : p.profit < 0 ? "negative" : ""
-                    }
-                  >
-                    {p.profit > 0 ? "+" : ""}
-                    {number(p.profit)} SP
-                  </strong>
-                </div>
-              ))}
-              <p className="leaderboard-note">
-                Relief and your starting 1,000 SP never count as profit. Select
-                a player to view their history.
-              </p>
-            </div>
           )}
+          <div className="log-footer">
+            <span>Local time · This session only · Latest 100 alerts</span>
+            <span>No alert history is uploaded.</span>
+          </div>
         </section>
-        <div className="bottom-note">
-          <Icon name="shield" size={17} />
-          <p>
-            Missing round data? Stakes return automatically after a 20-minute
-            grace period. SP is free play money with no cash value.
-          </p>
-          <button className="text-button" onClick={() => setHelp(true)}>
-            Read the rules <Icon name="chevron" size={14} />
-          </button>
-        </div>
+        <section
+          className="how-section"
+          id="how-it-works"
+          aria-labelledby="how-title"
+        >
+          <div className="how-intro">
+            <h2 id="how-title">A bot that’s yours.</h2>
+            <p>
+              You own the bot, choose the events, and receive the alerts. This
+              is your personal toolkit for the wheel.
+            </p>
+          </div>
+          <ol className="how-steps">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>Create your bot</h3>
+                <p>
+                  Open{" "}
+                  <a
+                    href="https://t.me/BotFather"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    @BotFather
+                  </a>{" "}
+                  in Telegram, send /newbot, and copy your token.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>Say hello</h3>
+                <p>
+                  Send /start to your new bot. Paste its token above, then use
+                  Find chat ID. Groups need the bot added; channels need posting
+                  permission.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>Make it squeek</h3>
+                <p>
+                  Send a test, pick your triggers, and start watching. Keep one
+                  watching tab open. New events go straight to your Telegram
+                  chat.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
       </main>
       <footer className="site-footer">
-        <div>
-          <span className="footer-brand">
-            <Icon name="seed" size={17} />
-            Squeek Streak
+        <span>
+          <span className="footer-seed" aria-hidden="true">
+            <Icon name="seed" size={16} />
           </span>
-          <span>Small paws. Big possibilities.</span>
-        </div>
-        <div>
-          <a href="https://squeekchain.com" target="_blank" rel="noreferrer">
-            Powered by Squeekchain <Icon name="external" size={13} />
-          </a>
-          <span>Play points only · No gas</span>
-        </div>
-      </footer>
-
-      {help && (
-        <Modal
-          title="A little wheel. Four ways to play."
-          onClose={() => setHelp(false)}
-          className="rules-modal"
-        >
-          <div className="rules-content">
-            <p>
-              Predict the <strong>next</strong> 10-minute round’s total wheel
-              work. Current-round work is a clue, never the result.
-            </p>
-            <ol className="rules-steps">
-              <li>
-                <strong>Pick a band.</strong> Sleep: 0. Stroll: 1–99. Run:
-                100–499. Sprint: 500+ work units.
-              </li>
-              <li>
-                <strong>Stake 10–500 SP.</strong> You start with 1,000 free SP.
-                One pick per player per round; picks lock when submitted.
-              </li>
-              <li>
-                <strong>Wait for confirmed work.</strong> Results come from the
-                official Squeekchain settlement API, never from RPM estimates.
-              </li>
-            </ol>
-            <h3>Streak rewards</h3>
-            <p>
-              Win 1 returns 2× your stake; consecutive wins return 2.25×, 2.5×,
-              2.75×, then 3× from win 5 onward. Returns include your stake and
-              round down to whole SP. A loss resets the solo streak. The
-              multiplier is determined when earlier picks finish settling.
-            </p>
-            <h3>1v1 duels</h3>
-            <p>
-              Two different signed-in wallets in this browser stake the same SP
-              on different bands in the same round. The only correct player
-              takes the 2× pot. If neither is correct, both are refunded. Duels
-              do not change solo streaks. Unmatched duels refund when the round
-              starts; the host can cancel before a match.
-            </p>
-            <h3>Missing data & daily relief</h3>
-            <p>
-              Missing, unsafe, or ambiguous round work is never treated as zero.
-              If no exact confirmed result is available within{" "}
-              {REFUND_GRACE_MS / 60_000} minutes after a round ends, stakes
-              refund and streaks stay safe. Checks run while the page is open
-              and catch up when reopened.
-            </p>
-            <p>
-              Below 300 SP? Claim 300 SP once per UTC day. Daily relief resets
-              at 00:00 UTC.
-            </p>
-            <h3>Your local league</h3>
-            <p>
-              Points, duels, history, and rankings live in this browser’s
-              storage. Wallet signatures verify your local identity for 24
-              hours; they do not sync scores across devices. Guest practice has
-              its own balance. No server enforces balances, and clearing storage
-              resets the league.
-            </p>
-            <p>
-              Weekly profit counts settled returns minus stakes from Monday at
-              00:00 UTC, including duels. Starting points, pending stakes, and
-              relief are excluded.
-            </p>
-          </div>
-          <button
-            className="button primary full-width"
-            onClick={() => setHelp(false)}
-          >
-            Got it. Let’s predict.
-            <Icon name="arrow" size={18} />
-          </button>
-        </Modal>
-      )}
-      {relief && (
-        <Modal
-          title="A few seeds to keep going"
-          onClose={() => setRelief(false)}
-        >
-          <div className="relief-illustration">
-            <Hamster mood="stroll" />
-          </div>
-          <p>
-            Claim <strong>300 SP</strong> when your balance falls below 300 SP.
-            Available once per UTC day, resetting at 00:00 UTC.
-          </p>
-          <div className="relief-summary">
-            <span>Your balance</span>
-            <strong>{number(player.balance)} SP</strong>
-          </div>
-          <p className="muted">
-            {reliefEligible
-              ? "Your relief is ready. A fresh start for those little paws."
-              : player.lastRelief === utcDay(now)
-                ? "Today’s relief is claimed. Come back after 00:00 UTC."
-                : "You have enough seeds for now. Relief unlocks below 300 SP."}
-          </p>
-          <button
-            className="button primary full-width"
-            disabled={!reliefEligible || busy}
-            onClick={() =>
-              void action(
-                (draft) => claimRelief(draft, playerId, now),
-                "300 SP relief claimed. Your next streak awaits.",
-              ).then((success) => {
-                if (success) setRelief(false);
-              })
-            }
-          >
-            Claim 300 SP
-            <Icon name="seed" size={18} />
-          </button>
-        </Modal>
-      )}
-      {profile && (
-        <Modal title="Make yourself at home" onClose={() => setProfile(false)}>
-          <p className="muted">
-            Give your local player a name.{" "}
-            {playerId === "guest"
-              ? "Connect a wallet to create or accept duels."
-              : `Signed in as ${shortAddress(playerId)}.`}
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const name = profileName.trim();
-              if (!name || name.length > 24) return;
-              void action((draft) => {
-                ensurePlayer(draft, playerId).name = name;
-              }, "Player name saved.").then((success) => {
-                if (success) setProfile(false);
-              });
-            }}
-          >
-            <label className="profile-label" htmlFor="player-name">
-              Player name
-            </label>
-            <input
-              id="player-name"
-              className="text-input"
-              name="nickname"
-              autoComplete="nickname"
-              value={profileName}
-              required
-              maxLength={24}
-              onChange={(e) => setProfileName(e.target.value)}
-            />
-            <p className="muted">
-              1–24 characters. Saved only in this browser.
-            </p>
-            <div className="profile-stats">
-              <span>{wins} wins</span>
-              <span>{losses} losses</span>
-              <span>{pendingCount} pending</span>
-            </div>
-            <button
-              className="button primary full-width"
-              type="submit"
-              disabled={busy}
-            >
-              Save player name
-              <Icon name="check" size={18} />
-            </button>
-          </form>
-        </Modal>
-      )}
-    </>
-  );
-}
-
-function HistoryRow({ p, now }: { p: Prediction; now: number }) {
-  const status =
-    p.outcome === "pending"
-      ? now < p.start
-        ? "Locked"
-        : now < p.end
-          ? "In progress"
-          : "Settling"
-      : p.outcome === "won"
-        ? "Won"
-        : p.outcome === "lost"
-          ? "Lost"
-          : "Refunded";
-  return (
-    <div className="history-row" role="row">
-      <div role="cell" className="history-pick">
-        <span className={`history-band-icon ${p.band}`}>
-          <Hamster mood={p.band} />
+          Made for the little wheel.
         </span>
-        <div>
-          <strong>
-            #{p.round} · {label(p.band)}
-          </strong>
-          <span>
-            {p.duelId ? "1v1 duel" : "Solo"} · {p.stake} SP
-            {p.work !== undefined ? ` · ${p.work} work` : ""}
-          </span>
-          {p.reason && <small>{p.reason}</small>}
-        </div>
-      </div>
-      <span role="cell" className="history-stake">
-        {p.stake} SP
-      </span>
-      <span role="cell">
-        <span className={`result-badge ${p.outcome}`}>{status}</span>
-      </span>
-      <strong
-        role="cell"
-        className={
-          p.outcome === "won"
-            ? "positive"
-            : p.outcome === "lost"
-              ? "negative"
-              : "muted"
-        }
-      >
-        {p.outcome === "pending"
-          ? "Pending"
-          : `${p.payout - p.stake > 0 ? "+" : ""}${p.payout - p.stake} SP`}
-      </strong>
-    </div>
+        <span>Squeek Alert Lab · A community toolkit</span>
+        <a
+          href="https://api.squeekchain.com/v1/settlements?range=24h"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Round history
+          <Icon name="external" size={12} />
+        </a>
+      </footer>
+    </>
   );
 }

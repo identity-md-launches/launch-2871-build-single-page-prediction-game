@@ -1,0 +1,31 @@
+
+> squeek-streak@1.0.0 test
+> tsx --test tests/*.test.ts
+
+✔ first reading establishes a baseline, including a running wheel (2.788144ms)
+✔ wake-up and upward threshold occur exactly once at a crossing (1.033053ms)
+✔ threshold crosses down and does not repeat at equality (0.449196ms)
+✔ sleep is sent once after five minutes of continuous zero polls, then resets (0.869559ms)
+✔ initially sleeping is not treated as a transition back to sleep (0.46487ms)
+✔ a brief stop resets when the wheel runs again (0.228294ms)
+✔ disabled events never send; changing a threshold rebaselines it (0.227413ms)
+✔ a poll gap, changed installation or regressed sensor time rebaselines (0.618891ms)
+✔ RPM uses milli units; missing current work stays missing (0.676477ms)
+✔ bad, stale and offline measurements cannot become live data (1.165624ms)
+✔ safe checkpoints include zero-work rounds and unsafe entries are excluded (0.606973ms)
+✔ round baseline suppresses history; overlapping proofs do not duplicate new alerts (0.513583ms)
+✔ disabled round alerts advance baseline; installations do not mix (0.194692ms)
+✔ batch messages name the range without inventing individual work (0.214653ms)
+✔ empty history can establish a later baseline safely (0.170607ms)
+✔ credential and target validation reject blanks and invalid ranges (0.283026ms)
+✔ Telegram uses a POST directly to Telegram with no referrer or cookies (45.014165ms)
+✔ Telegram errors are sanitized and 429 carries a retry deadline (2.298658ms)
+✔ chat discovery deduplicates IDs; it never acknowledges updates or removes webhooks (1.800538ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 317.314997

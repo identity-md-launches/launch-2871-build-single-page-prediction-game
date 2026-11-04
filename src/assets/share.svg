@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<rect width="1200" height="630" fill="#121719"/>
+<path d="M64 114h1072M64 542h1072" stroke="#2c363a"/>
+<g transform="translate(64 38) scale(.8)"><rect width="64" height="64" rx="18" fill="#222a2d"/><g fill="#dc9255"><ellipse cx="19" cy="20" rx="9" ry="11" transform="rotate(-20 19 20)"/><ellipse cx="45" cy="20" rx="9" ry="11" transform="rotate(20 45 20)"/></g><g fill="#f5b8a1"><ellipse cx="19" cy="20" rx="5" ry="7"/><ellipse cx="45" cy="20" rx="5" ry="7"/></g><path d="M8 37C8 20 19 18 32 18s24 5 24 21c0 14-11 18-24 18S8 51 8 37" fill="#e8a769"/><ellipse cx="32" cy="43" rx="16" ry="14" fill="#fff0d5"/><g fill="#49382c"><ellipse cx="22" cy="35" rx="2.5" ry="3"/><ellipse cx="43" cy="35" rx="2.5" ry="3"/></g><path d="M28 41q4-3 8 0l-4 4Z" fill="#c77c6a"/><path d="M32 45v3m0 0q-4 4-6 0m6 0q4 4 6 0" fill="none" stroke="#8f6047" stroke-width="1.4" stroke-linecap="round"/><g fill="#e7987b"><ellipse cx="16" cy="42" rx="4" ry="2"/><ellipse cx="48" cy="42" rx="4" ry="2"/></g></g>
+<g font-family="'Nunito Sans',sans-serif" fill="#eff2ed">
+<text x="132" y="75" font-size="28" font-weight="800">Squeek Alert Lab</text>
+<text x="64" y="238" font-size="76" font-weight="800" letter-spacing="-2">Your bot.</text>
+<text x="64" y="322" font-size="76" font-weight="800" letter-spacing="-2" fill="#f5c276">Your alerts.</text>
+<text x="68" y="389" font-size="26" fill="#a6b2b6">Bring your own Telegram bot to</text>
+<text x="68" y="427" font-size="26" fill="#a6b2b6">the Squeekchain hamster wheel.</text>
+<text x="68" y="586" font-size="21" fill="#a6b2b6">No backend. No account. Just your little lab.</text>
+</g>
+<circle cx="936" cy="302" r="154" fill="#1b2225" stroke="#7f9990" stroke-width="10"/>
+<circle cx="936" cy="302" r="135" fill="none" stroke="#394a43" stroke-width="2"/>
+<path d="M936 161v282M795 302h282m-241-100 200 200m-200 0 200-200" stroke="#394a43" stroke-width="4"/>
+<path d="m895 444-12 34m95-34 12 34" stroke="#7f9990" stroke-width="10" stroke-linecap="round"/>
+<g transform="translate(861 249) scale(2.35)"><g fill="#dc9255"><ellipse cx="19" cy="20" rx="9" ry="11" transform="rotate(-20 19 20)"/><ellipse cx="45" cy="20" rx="9" ry="11" transform="rotate(20 45 20)"/></g><g fill="#f5b8a1"><ellipse cx="19" cy="20" rx="5" ry="7"/><ellipse cx="45" cy="20" rx="5" ry="7"/></g><path d="M8 37C8 20 19 18 32 18s24 5 24 21c0 14-11 18-24 18S8 51 8 37" fill="#e8a769"/><ellipse cx="32" cy="43" rx="16" ry="14" fill="#fff0d5"/><g fill="#49382c"><ellipse cx="22" cy="35" rx="2.5" ry="3"/><ellipse cx="43" cy="35" rx="2.5" ry="3"/></g><path d="M28 41q4-3 8 0l-4 4Z" fill="#c77c6a"/><path d="M32 45v3m0 0q-4 4-6 0m6 0q4 4 6 0" fill="none" stroke="#8f6047" stroke-width="1.4" stroke-linecap="round"/><g fill="#e7987b"><ellipse cx="16" cy="42" rx="4" ry="2"/><ellipse cx="48" cy="42" rx="4" ry="2"/></g></g>
+<path d="M1078 164h10v13m-10 0 10-13m-31-21h10v13m-10 0 10-13" stroke="#a6b2b6" fill="none" stroke-width="3"/>
+</svg>

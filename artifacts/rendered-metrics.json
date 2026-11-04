@@ -1,0 +1,72 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "mainAction": {
+    "top": 510.1875,
+    "bottom": 558.1875,
+    "height": 48,
+    "visible": true
+  },
+  "openPageReminder": {
+    "bottom": 588.1875,
+    "visible": true
+  },
+  "fonts": [
+    {
+      "family": "Nunito Sans",
+      "weight": "400 800",
+      "status": "loaded"
+    }
+  ],
+  "pairs": [
+    {
+      "label": "Primary action",
+      "selector": ".setup-actions .primary",
+      "foreground": "rgb(43, 33, 21)",
+      "background": "rgb(245, 194, 118)",
+      "contrast": 9.66
+    },
+    {
+      "label": "Heading",
+      "selector": "h1",
+      "foreground": "rgb(239, 242, 237)",
+      "background": "rgb(18, 23, 25)",
+      "contrast": 16
+    },
+    {
+      "label": "Supporting copy",
+      "selector": ".intro p",
+      "foreground": "rgb(166, 178, 182)",
+      "background": "rgb(18, 23, 25)",
+      "contrast": 8.32
+    },
+    {
+      "label": "Field hint",
+      "selector": "#chat-hint",
+      "foreground": "rgb(166, 178, 182)",
+      "background": "rgb(27, 34, 37)",
+      "contrast": 7.42
+    },
+    {
+      "label": "Live status",
+      "selector": ".live-panel .status-label",
+      "foreground": "rgb(155, 206, 174)",
+      "background": "rgb(27, 34, 37)",
+      "contrast": 9.09
+    },
+    {
+      "label": "Input text",
+      "selector": "#chat-id",
+      "foreground": "rgb(239, 242, 237)",
+      "background": "rgb(18, 23, 25)",
+      "contrast": 16
+    }
+  ],
+  "manualRefreshCountdown": {
+    "before": "Next poll in 10s",
+    "after": "Next poll in 10s",
+    "passed": true
+  }
+}

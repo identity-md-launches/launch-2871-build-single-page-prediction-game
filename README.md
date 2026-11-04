@@ -1,19 +1,19 @@
-# Squeek Streak
+# Squeek Alert Lab
 
-A single-page prediction game for the real Squeekchain hamster wheel. Pick the **next** 10-minute round’s work band, stake free SP, build a streak, or challenge a second wallet. Duels and scores belong to a disclosed local league in this browser.
+**Bring your own Telegram bot to the Squeekchain hamster wheel.** Configure the bot you own, choose the moments you care about, and send alerts directly from your browser. No backend, account, signup, wallet, or shared broadcast bot.
 
-The complete static website is in **`dist/`**. It includes all fonts, illustrations, wallet marks, the favicon, and the social card. No build server, API key, relay, or WalletConnect project ID is needed to serve it.
+The complete static export is in **[`dist/`](dist/)**. It includes the local font, hamster artwork, favicon and social image. Serve its contents over HTTP/HTTPS; relative asset URLs also work at a gateway subpath. Opening the HTML with `file://` is unsupported.
 
-## Install, run, and rebuild
+## Install, preview and rebuild
 
-Use Node.js 22.12+ or 24+ and npm.
+Use Node.js **22.12+ or 24+** and npm:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Build and preview the production export:
+For the production export:
 
 ```sh
 npm run typecheck
@@ -22,87 +22,93 @@ npm run build
 npm run preview
 ```
 
-Open the URL printed by Vite. For deployment, serve the **contents of `dist/`** using a static host. `vite.config.ts` sets `base: './'`; asset URLs work under a gateway subpath. Navigation uses page anchors and local state, with no server route rewrites. Opening `index.html` using `file://` is unsupported because module scripts, API requests, and wallet sessions require an HTTP origin. Use HTTPS for public hosting; HTTP localhost is supported for development.
+Open the address Vite prints. `vite.config.ts` uses `base: './'`. This is one page with anchor navigation; no route rewrites or server runtime are required. The existing project manifest and lockfile are retained unchanged, including their legacy package name and unused wallet dependencies. The delivered app imports no wallet infrastructure.
 
-Browser validation, after building:
+To run production interaction checks:
 
 ```sh
-npx playwright install chromium webkit
+npx playwright install --with-deps chromium webkit
 npm run test:browser
 ```
 
-Playwright may also require its platform browser libraries (`npx playwright install-deps`). Tests manage their own temporary HTTP server under `/preview/` and close it on completion. Test reports and screenshots go to `test/scratch/`; nothing there is needed to build or serve the game. Test wallets are generated in memory and never saved as keys. API fixtures exist only in the test code and are never bundled into the website.
+The browser suite manages a temporary server under `/preview/` and closes it afterwards. Tests intercept Telegram and Squeekchain requests, use synthetic credentials only in tests, and accelerate the browser clock. They never message a real chat. Reports and screenshots go to `test/scratch/`, which is disposable.
 
-## What is implemented
+The editable social image is `src/assets/share.svg`. To regenerate the bundled 1200 × 630 PNG after editing it, run `node tests/share.mjs`, then rebuild.
 
-- **Live wheel:** official state, RPM, speed, current-round work, cumulative work, settled-through count, and a 10-minute countdown.
-- **Four bands:** Sleep = 0; Stroll = 1–99; Run = 100–499; Sprint = 500+ work units.
-- **Solo predictions:** 1,000 starting SP, stakes of 10–500 SP, one immutable pick per player per round.
-- **Streak returns:** successive wins pay 2×, 2.25×, 2.5×, 2.75×, then 3×. Returns include the stake, round down to whole SP, and are determined in round order. Losing resets the solo streak; refunds preserve it.
-- **Two-wallet duels:** two different signed-in wallets stake the same SP on different bands for one round. The correct player receives the whole 2× pot. If neither is correct, both get their stakes back. Unmatched duels refund at the round start; the creator can cancel an unmatched challenge. Duels do not alter solo streaks.
-- **Weekly leaderboard:** settled net profit, resetting Monday at 00:00 UTC, excluding starting points, relief, and unsettled stakes. Player names open their prediction history.
-- **History:** per-player filters, pending/won/lost/refunded states, and a CSV download of the signed-in player’s history.
-- **Daily relief:** 300 SP when the balance is below 300 SP, once per UTC day, resetting at 00:00 UTC.
-- **Wallet login:** EIP-6963 discovery, an injected-provider fallback, mobile wallet browser links, and Coinbase Wallet/Smart Wallet. Login uses a unique, origin-bound, expiring message signature that is verified before activating the local player. No transaction, approval, or chain-switch request is made by the app.
+## Use your bot
 
-SP has no monetary value. Guest practice is usable without a wallet and has its own points; duels require signed wallet identities.
+1. In Telegram, open [@BotFather](https://t.me/BotFather), send `/newbot`, and follow its prompts.
+2. Send `/start` to your new bot. Paste its token into Alert Lab.
+3. Enter your chat ID, or select **Find chat ID** to read recent messages to your own bot. If there is more than one chat, choose the recipient. A group ID includes a minus sign; add the bot to the group. A public channel can use its `@channel` name and must let the bot post.
+4. Select **Send test alert**, check Telegram, choose your triggers, and select **Start watching**.
+5. Keep the page open. Use **Stop watching** to stop sending or edit the recipient. **Forget saved bot** asks for confirmation, stops watching, and removes saved credentials and preferences.
 
-## Live data and settlement
+Chat lookup reads `getUpdates` without an offset. It does not acknowledge updates, delete a webhook, or change allowed update types. If another reader or webhook prevents lookup, enter the chat ID manually. Recent updates may be absent even for a valid chat.
 
-The app polls these public endpoints every 15 seconds while visible and refreshes on return to the tab:
+## Alert behavior
 
-- [Official status API](https://api.squeekchain.com/v1/status): `measurement.coreStatus`, `rpmMilli` (divided by 1,000 for RPM), `speedMmPerSecond`, `cumulativeWorkUnits`, and `builder.queued.openRoundWorkUnits`.
-- [Official settlement history](https://api.squeekchain.com/v1/settlements?range=24h): safe settlement records and mining checkpoints. `mining.nextRound.round` and `startsAt` anchor the round numbering and 600-second schedule.
+| Trigger                | What sends an alert                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Hamster wake-up        | An observed transition from 0 RPM to above 0                                                                     |
+| Hamster sleep          | An observed moving → 0 transition followed by at least five minutes of consecutive zero readings; once per sleep |
+| New round settled      | Newly seen, safe round confirmations from settlement history or mining checkpoints                               |
+| RPM threshold crossing | Crossing upward to the target or downward below it; default **500 RPM**                                          |
 
-Only **exact, confirmed round work** can settle a pick. A safe single-round `workAdded` is accepted. Consecutive safe mining checkpoints can prove a round’s cumulative-work difference, including zero-work rounds absent from the active settlement list. A confirmed zero-work batch can prove that each included round slept. Nonzero multi-round batches, unsafe records, missing values, and cross-installation records are never guessed or split.
+All four toggles start enabled. The target accepts positive numbers up to 1,000,000 RPM. Editing it establishes a new comparison baseline rather than manufacturing a crossing. An invalid draft keeps the last valid target active and shows an error; it cannot start a new watching session.
 
-When an exact result is unavailable for **20 minutes after the target round ends**, its stake refunds automatically. On reopening, the initial history request completes (or fails/times out) before a missing-data refund. An exact result whose API confirmation timestamp is at or before the deadline settles a pending solo pick or matched duel even on a later visit. Settlement checks run every five seconds while open; a closed static page cannot run a background job. Completed refunds remain final. A changed API installation also refunds affected picks. Out-of-order solo results wait for that player’s earlier result or refund, preserving correct streak multipliers without blocking other players.
+Both official endpoints are polled every **15 seconds**, including when sending is stopped so the live panel remains useful:
 
-The device’s UTC clock aligns to the official round anchor. A stale/offline status, unavailable anchor/history, or a clock more than two minutes away from the API timestamp pauses new picks. Cached responses cannot rewind the countdown or reopen a round. Previously shown metrics stay labeled **Paused** on a feed failure; no fabricated live data is substituted. When only status is unavailable, safe settlement history can still resolve pending picks without enabling new ones.
+- [Status](https://api.squeekchain.com/v1/status): `measurement.rpmMilli / 1000`, freshness and sensor timestamps, `coreStatus`, and `builder.queued.openRoundWorkUnits`. Current round work is **not** cumulative work.
+- [24-hour settlements](https://api.squeekchain.com/v1/settlements?range=24h): safe settlement ranges and safe mining checkpoints. Checkpoints also reveal zero-work rounds omitted from recent active settlements. Overlapping proofs are deduplicated. A batched confirmation is named as a round range; its work is never assigned to individual rounds.
 
-## Local league boundary
+The first successful poll after starting establishes a baseline and sends no historical alerts. Starting while the hamster is already asleep does not count as a new sleep transition. Reloading keeps settings but **never automatically resumes sending**. State transitions and the latest 100 log entries live only in this page session.
 
-**This is a static, browser-local game.** Points, duels, history, names, and rankings live in localStorage on the current origin. Wallet signing proves ownership for the local session; it does not create a server account or sync points between devices. The interface states this in the league and duel views and the rules.
+A failed or stale status request resets the wheel comparison baseline; a gap longer than 45 seconds does too. Sleep is never inferred across a missing observation gap. Round history remains independently useful during a status outage, and can catch up from the records the API still returns after a temporary history outage. There is no guarantee of a complete backlog. Feed timestamps more than two minutes away from the device clock are rejected; check the device clock if that warning appears. Missing metrics display a dash rather than a fabricated zero.
 
-For a duel, create a challenge, pass the same browser/device to a friend, switch or disconnect the wallet, and have the friend sign in, pick a different band, and join. Tabs on the same origin share the league; Web Locks serialize supported-browser writes. There is no remote matchmaking, global ranking, cross-device escrow, or server-enforced anti-cheat. Clearing site storage resets the league. A wallet starts with its own 1,000 SP; guest points are separate. Signature sessions last up to 24 hours and are checked on reload and account changes. Smart-contract signature verification uses Ethereum Mainnet; the real Coinbase passkey/app flow remains an integration check for a live wallet.
+Messages are sent sequentially with a 12-second timeout. The log distinguishes **Sending**, **Sent to Telegram** and **Failed**. “Sent” means Telegram accepted the request, not that the recipient read it. Failed deliveries offer manual retry; ambiguous network failures explain that retry may duplicate a message. Rate limits impose Telegram's retry delay. There are no silent retries. Stopping cancels queued sends; an already accepted request cannot be recalled.
 
-A global competitive league would require a trusted persistence and authentication service. No such service or credentials were supplied, so none is invented or implied.
+## Privacy and open-page limit
 
-## Validation performed
+The token and settings are stored only in this browser's localStorage, under `squeek-alert-lab:settings:v1`. Storage failure is shown; the app can continue in memory for the visit. There are no analytics, external scripts, external fonts, application servers, or credential uploads to Squeekchain.
 
-The production export was built and tested on **2026-11-02**:
+**Sending an alert necessarily transmits the token directly to Telegram**, as required by its [Bot API](https://core.telegram.org/bots/api#sendmessage). The application does not send it to an intermediary or put it in alert text, logs, links, or displayed server errors. Chat discovery also communicates directly with Telegram. Local storage is origin-specific; settings do not sync between devices.
 
-| Check | Actual result |
-| --- | --- |
-| Production build | Passed; relative export in `dist/` |
-| TypeScript (`tsc --noEmit`) | Passed |
-| Game/API unit tests | 28/28 passed |
-| Production browser scenarios | 13/13 passed across Chromium and WebKit |
-| Axe accessibility scan | No violations in the inspected main state |
-| Pinned taste@1 probe | 16/16 passed at 320, 390, and 1440 px |
-| Additional reflow | No horizontal overflow at 740 or 900 px; 200% text sizing at 390 px passed |
-| Real API smoke check | Both official endpoints answered; live export rendered with no script errors or missing resources |
+**Alerts only fire while the page is open.** Background tabs may be throttled and a sleeping device may suspend polling. There is no background worker or closed-page delivery. Use one watching tab: Web Locks prevent concurrent watchers on the same origin where supported; browsers without that API require keeping one watching tab yourself.
 
-Browser scenarios cover prediction validation and persistence, exact settlement, streak payout, duplicate prevention, CSV/history/leaderboard, API-down refunds, settlement during a status-only outage, daily relief, name editing, EIP-6963 signature verification, rejected-signature retry, account switching, a complete two-wallet duel, keyboard dialog focus and return, running wheel metrics, reduced motion, and recovery after API failure. Round waits use a controlled browser clock, not real 10-minute sleeps.
+## Validation
 
-Revision regressions also cover reopening after the refund deadline, delayed initial history, timely winning and losing results, late/missing data, matched-duel payouts, refund finality, and 24-character player names at 320–1440px. The corrected local share card was inspected directly. All three reviewer findings and their rechecks are recorded in [.imd-responses.json](.imd-responses.json).
+Worker validation on **2026-11-04**:
 
-Checks used direct Playwright Chromium and WebKit. WebKit used temporary external runtime libraries; both browsers completed their scenarios. No machine dependencies or caches are included in the delivery. The build emits one benign dependency warning about an unused Node worker module in Ox; the tested browser bundle has no corresponding runtime failure.
+| Check                            | Result                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Production build                 | Passed; complete, relative export in `dist/`                                                                                  |
+| TypeScript                       | Passed with `tsc --noEmit`                                                                                                    |
+| API and alert unit tests         | 19/19 passed                                                                                                                  |
+| Chromium and WebKit interactions | 21/21 scenarios passed                                                                                                        |
+| Pinned taste@1                   | 16/16 passed at 320, 390 and 1440 px                                                                                          |
+| Accessibility                    | No Axe violations in the inspected default state in either engine                                                             |
+| Reflow                           | No horizontal overflow at 320, 390, 560, 740, 800, 900, 1120 or 1440 px; 200% text enlargement and an RTL mirror also checked |
+| Live API smoke check             | Both endpoints returned HTTP 200 in the actual production page; no console errors                                             |
 
-Real wallet extensions, physical phone app handoffs, Coinbase passkey creation, screen-reader sessions, and browser-native zoom were not tested. Emulated viewports and 200% CSS text enlargement are not physical-device or native-zoom tests. These results are worker observations, not an independent certification. Detailed coverage, fixed findings, evidence, and remaining limitations are in [docs/validation.md](docs/validation.md).
+The ordinary `npm run typecheck`, `npm test`, and `npm run build` commands also passed in a clean source copy using dependencies installed outside the repository. No repository dependency directory, build configuration, manifest or lockfile was changed. The clean build produced the same asset names and sizes as the delivered export. WebKit required temporary external runtime libraries and software rendering; none is bundled.
+
+Real bot credentials were not supplied, so actual Telegram chat delivery, physical phones, screen-reader sessions, browser-native zoom, forced-colors rendering and live five-minute hardware transitions were **not verified**. API failure, sleep timing and Telegram success/error paths were tested with intercepted requests and a controlled clock. These are worker observations, not independent certification.
+
+Detailed six-domain design coverage, fixes, commands, screenshots, actual check results and remaining limits are in [`artifacts/validation.md`](artifacts/validation.md). The implemented design is documented in [`DESIGN.md`](DESIGN.md).
 
 ## Source map
 
-| Path | Purpose |
-| --- | --- |
-| `src/App.tsx` | Play screen, league/history, rules, relief, profile flows |
-| `src/lib/api.ts` | Official API normalization, safe result extraction, round timing |
-| `src/lib/game.ts` | Points ledger, solo/duel settlement, streaks, relief, profit |
-| `src/lib/hooks.ts` | Polling, clock, persisted state, cross-tab synchronization |
-| `src/lib/wallet.ts` | Connector config, signed session verification, phone links |
-| `src/components/` | Wallet sheet, native dialog, hamster artwork and icons |
-| `src/style.css` | Color/type tokens, component states, responsive layout |
-| `tests/` | Portable unit and production-browser validation |
-| `public/` | Local runtime assets copied to `dist/` |
+| Path                     | Purpose                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `src/App.tsx`            | Setup, chat lookup, triggers, live panel, log and instructions                 |
+| `src/lib/api.ts`         | Official API parsing, freshness and safe confirmations                         |
+| `src/lib/alerts.ts`      | Pure wheel and round transition detection                                      |
+| `src/lib/useLab.ts`      | Polling, watching lock, sequential delivery and session log                    |
+| `src/lib/telegram.ts`    | Direct Telegram sending and chat lookup; sanitized failures                    |
+| `src/lib/settings.ts`    | Browser settings and validation                                                |
+| `src/components/Art.tsx` | Retained hamster identity, adapted dark wheel and SVG icons                    |
+| `src/style.css`          | Tokens, responsive layout and interaction states                               |
+| `tests/`                 | Unit tests, production browser suite, preview harness and share-image renderer |
+| `public/`, `dist/`       | Required local assets and complete production export                           |
 
-[DESIGN.md](DESIGN.md) describes the final visual system and its reuse points. [Third-party notices](docs/THIRD_PARTY_NOTICES.md) link the retained licenses under `docs/` and `public/`.
+See [third-party notices](docs/THIRD_PARTY_NOTICES.md) for font and design-guidance licenses.
